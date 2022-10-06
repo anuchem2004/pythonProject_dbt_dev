@@ -1,0 +1,9 @@
+
+version: 2
+
+sources:
+  - name: hrst_stg
+    database: dev
+    schema: hrst_stg
+    tables:
+      - name: source_last_send_alterian
