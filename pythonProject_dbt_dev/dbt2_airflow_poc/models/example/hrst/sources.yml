@@ -2,15 +2,8 @@
 version: 2
 
 sources:
-  - name: hrst
+  - name: hrst_stg
     database: dev
-    schema: hrst
+    schema: hrst_stg
     tables:
-      - name: wt_email_d
-      - name: wt_email_individual_bridge
-      - name: wt_email_individual_bridge_distinct_alterian
-      - name: wt_individual_alterian_driver
-      - name: wt_individual_d
-      - name: wt_individual_flags_d
-      - name: wt_individual_f
-      - name: wt_nielsen_dma_d
+      - name: source_last_send_alterian
