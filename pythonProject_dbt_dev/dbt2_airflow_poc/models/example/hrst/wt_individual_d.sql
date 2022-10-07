@@ -2,9 +2,9 @@
 
 with wt_individual_d as (
 
-    SELECT
-              individual_sk,
-              maint_dt
+    SELECT *
+--              individual_sk,
+--              maint_dt
               --              email_sk,
 --              update_dt
 --              email_individual_sk,

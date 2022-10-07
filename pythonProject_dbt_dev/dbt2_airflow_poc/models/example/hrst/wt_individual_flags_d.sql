@@ -2,10 +2,10 @@
 
 with wt_individual_flags_d as (
 
-    SELECT
-              individual_sk,
---              email_sk,
-              update_dt
+    SELECT  *
+--              individual_sk,
+----              email_sk,
+--              update_dt
 --              email_individual_sk,
     FROM {{source('hrst','wt_individual_flags_d')}}
 )
