@@ -32,7 +32,7 @@ def extract_trans():
         root = parsed_tree.getroot()
         print(list(root))
 
-        for child in root.findall('.//step/name'):
+        for child in root.findall('.//step'):
             a = child.findtext('name')
             n.append(a)
 
@@ -44,12 +44,12 @@ def extract_trans():
             t.append(c)
             # print(list(tuple((child))))
 
-        # for each in pd.DataFrame.iterrows():
-            li=(child.findall('filemask'))
-            ln=child.findall('name')
+        for each in pd.DataFrame.iterrows():
+            li=(each.findall('filemask'))
+            ln=each.findall('name')
             # lj =each.findall('jsScript_script')
             js=list(root.iter('jsScript_script'))
-            js1=(child.findtext('./step/name/file/name'))
+            js1=(each.findtext('./step/name/file/name'))
             jscript.append(js)
             # print(js)
             # print(lj)
