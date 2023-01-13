@@ -1,0 +1,114 @@
+name,type,sql,from,to
+Table input work_alterian_indv_auth_table,TableInput,"select individual_sk,
+       max(case when authorization_cd_sk = 171 then 'Y' else 'N' end) as pand_glb,
+       max(case when authorization_cd_sk = 1720 then 'Y' else 'N' end) as pand_hrt,
+	   max(case when authorization_cd_sk = 17100 then 'Y' else 'N' end) as pand_hst,      
+	   max(case when authorization_cd_sk = 15 then 'Y' else 'N' end) as dma_mail,		 
+	   max(case when authorization_cd_sk = 19 then 'Y' else 'N' end) as prison,	
+	   max(case when authorization_cd_sk = 16 then 'Y' else 'N' end) as panccc,
+       max(case when authorization_cd_sk = 26 then 'Y' else 'N' end) as rent,
+	   max(case when authorization_cd_sk = 27 then 'Y' else 'N' end) as rent_int,
+       max(case when authorization_cd_sk = 31 then 'Y' else 'N' end) as trn_email,
+	   max(authorization_effective_dt) as authorization_effective_dt,
+       NOW() as load_dt	
+				  		 
+from work_alterian_indv_auth_table 
+
+
+group by individual_sk; ",['Table input work_alterian_indv_auth_table'],"['Text file output, indvauth']"
+"Text file output, indvauth",TextFileOutput,,['Get Data from ccpa'],['Copy rows to result']
+Get Data from ccpa,TableInput,"-- Below query is for regular data from work_email_promotion_hist_f_stg_agg_deduped
+
+SELECT `ccpa_seq_nbr`,
+	`ccpa_request_id`,
+	`ccpa_request_type`,
+	`ccpa_request_source`,
+	`ccpa_publisher_code`,
+	`ccpa_request_brand`,
+	`ccpa_acct_nbr`,
+	`ccpa_email_addr`,
+	`ccpa_request_date`
+FROM hrst_stg.`a_a_ccpa_input` a
+WHERE a.`ccpa_request_status` = 'WIP';",['ccpa python input'],['Replace in string']
+Copy rows to result,RowsToResult,,['Replace in string'],['ccpa python output']
+Replace in string,ReplaceString,,['Get rows from result'],['Get Variables']
+ccpa python input,TextFileInput,,['get individual_sks for email address'],['Write to log']
+ccpa python output,TextFileOutput,,['Write to log'],['Copy rows to result']
+Get rows from result,RowsFromResult,,['Get Data from source xref'],['Write to log']
+Get Variables,GetVariable,,['Write to log'],['Copy rows to result']
+Copy rows to result,RowsToResult,,['Get Data from ccpa'],['Write to log']
+Write to log,WriteToLog,,['Write to log'],['Copy rows to result']
+get individual_sks for email address,TableInput,"-- Below query is for regular data from work_email_promotion_hist_f_stg_agg_deduped
+
+						
+SELECT GROUP_CONCAT(e.individual_sk SEPARATOR ',') as individual_sks ,
+count(*) as num_found
+FROM hrst.`wt_email_d` e1 
+JOIN hrst.`wt_email_individual_bridge` e ON e.`email_sk` = e1.`email_sk`
+WHERE e1.email_address = '${CCPA_EMAIL_ADDR}';",['table input CCPS data'],"['Text file output, ccpa json resposnse']"
+Copy rows to result,RowsToResult,,['table input CCPA status'],"['Text file output, ccpa json resposnse']"
+Get Data from source xref,TableInput,"-- Below query is for regular data from work_email_promotion_hist_f_stg_agg_deduped
+
+						
+SELECT d.individual_sk FROM hrst.`wt_individual_d` d 
+inner join  hrst_stg.`source_xref_stg` sx on d.`universal_id`=  sx.universal_id  
+where sx.`system_code` = '${CCPA_REQUEST_SOURCE}'
+							AND sx.`publisher_code` = '${CCPA_PUBLISHER_CODE}'
+							AND sx.`system_id` = ${CCPA_ACCT_NBR}
+							AND d.`curr_rec_ind` = 1
+union
+SELECT d.individual_sk FROM hrst.`wt_individual_d` d 
+inner join  hrst_stg.`source_xref_stg` sx on d.`universal_id`=  sx.universal_id  
+where sx.`system_code` = '${CCPA_REQUEST_SOURCE}'
+							AND sx.`publisher_code` = '${CCPA_PUBLISHER_CODE}'
+							AND sx.`system_id` = ${CCPA_ACCT_NBR}
+limit 1;	",['Get Data from ccpa'],['Write to log']
+Write to log,WriteToLog,,['Write to log'],['Copy rows to result']
+Copy rows to result,RowsToResult,,['Get rows from result'],['Set Variables']
+Get Data from ccpa,TableInput,"-- Below query is for regular data from work_email_promotion_hist_f_stg_agg_deduped
+
+SELECT `ccpa_seq_nbr`,
+	`ccpa_request_id`,
+	`ccpa_request_type`,
+	`ccpa_request_source`,
+	`ccpa_publisher_code`,
+	`ccpa_request_brand`,
+	LEFT(`ccpa_acct_nbr`, LENGTH(`ccpa_acct_nbr`) - 1) AS ccpa_acct_nbr,
+	`ccpa_email_addr`,
+	`ccpa_request_date`
+FROM hrst_stg.`a_a_ccpa_input` a
+WHERE a.`ccpa_request_status` = 'WIP'
+limit 1000;",['Get rows from result'],['Set Variables']
+Write to log,WriteToLog,,['Get Rows from results'],['Set Variables']
+"Text file output, ccpa json resposnse",TextFileOutput,,['Get Rows from results'],['Set Variables']
+table input CCPS data,TableInput,"	SELECT 
+	CONCAT(""{""""ccpa"""":{ """"referenceId"""":""""${CCPA_REQUEST_ID}"""", """"Customers"""": ["", 
+		(CASE WHEN c.`customer` IS NULL THEN ' ' ELSE c.`customer` END), 
+		""], """"Emails"""": ["", (CASE WHEN e.email IS NULL THEN ' ' ELSE e.email END) ,
+		""], """"emailPromSum"""": ["", (CASE WHEN e2.email_prom_sum IS NULL THEN ' ' ELSE e2.email_prom_sum END) ,
+		""], """"Eeditions"""": ["", (CASE WHEN f.`eeditions` IS NULL THEN ' ' ELSE f.`eeditions` END) ,
+		""], """"Surveys"""": ["", (CASE WHEN s.`survey` IS NULL THEN ' ' ELSE s.`survey` END),
+		""], """"pcUsers"""": ["", (CASE WHEN u.`user` IS NULL THEN ' ' ELSE u.`user` END),
+		""], """"Newsletters"""": ["", (CASE WHEN n.newsletter IS NULL THEN ' ' ELSE n.newsletter  END),
+		""], """"Demos"""": ["", (CASE WHEN a.`demos` IS NULL THEN ' ' ELSE a.`demos` END),
+		""], """"retiredDemos"""": ["", (CASE WHEN b.`retired_demo` IS NULL THEN ' ' ELSE b.`retired_demo` END),
+		""]} } "") AS json_file
+FROM 
+	hrst_stg.`a_customer_group` c, 
+	hrst_stg.`a_demo_group` a, 
+	hrst_stg.`a_retired_demo_group` b,
+	hrst_stg.`a_email_group` e,
+	hrst_stg.`a_email_prom_sum_group` e2,
+	hrst_stg.`a_eeditions_group` f,
+	hrst_stg.`a_customer_survey_group` s,
+	hrst_stg.`a_pc_user_group` u,
+	hrst_stg.`a_newsletters_group` n;",['Get rows from result'],['Set Variables']
+"Text file output, ccpa json resposnse",TextFileOutput,,['status_switch'],['case DNS']
+table input CCPA status,TableInput,"SELECT
+CONCAT(""{""""ccpa"""":{ """"referenceid"""":"""""", a.`ccpa_request_id`, """""",""""referencestatus"""":"""""", a.`ccpa_request_status`, """"""} }"") AS json_file
+FROM   hrst_stg.`a_a_ccpa_input` a
+WHERE a.ccpa_seq_nbr = ${CCPA_SEQ_NBR};  
+
+
+",['status_switch'],['Execute SQL script']
+Copy rows to result,RowsToResult,,['status_switch'],['case DELETE']

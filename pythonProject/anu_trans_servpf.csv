@@ -1,0 +1,1466 @@
+name,type,sql,from,to
+Filter rows,FilterRows,,['Filter rows'],['Load staged servpf_email_individual_bridge hold table']
+Get staged data,TableInput,"SELECT 
+ 	 s.publisher_cd
+	,IFNULL(id.individual_sk,-1) AS individual_sk
+	,s.accnt_nbr
+	,s.email_address
+    ,IFNULL(e.email_sk,-1) AS email_sk
+    ,s.update_dt
+FROM lt_servpf_email_stg AS s
+  LEFT OUTER JOIN source_xref_stg AS sx ON  s.publisher_cd = sx.publisher_code AND s.accnt_nbr = sx.system_id AND sx.system_code = 'SERVPF'
+  LEFT OUTER JOIN ${database}.wt_individual_d AS id ON sx.universal_id = id.universal_id AND id.curr_rec_ind = 1
+  LEFT OUTER JOIN  ${database}.wt_email_d AS e on s.email_address = e.email_address",['Get staged data'],['Filter rows']
+Load staged servpf_email_individual_bridge hold table,TableOutput,,['Filter rows'],['create_email_individual_bridge_fact_load_file']
+create_email_individual_bridge_fact_load_file,TextFileOutput,,['Get staged data'],['create_email_email_SPF_fact_load_file']
+Get staged data,TableInput,"SELECT 
+e.email_sk
+FROM lt_servpf_email_stg AS s
+INNER JOIN  ${database}.wt_email_d AS e on s.email_address = e.email_address
+WHERE e.email_sk NOT IN(SELECT email_sk FROM ${database}.wt_SPF_email_d)",['Get staged data'],['Convert email_address to MD5 hash value']
+create_email_email_SPF_fact_load_file,TextFileOutput,,['Convert email_address to MD5 hash value'],['Mail Validator']
+Convert email_address to MD5 hash value,CheckSum,,['Mail Validator'],['Select values']
+Get staged data,TableInput,"SELECT DISTINCT 
+     email_address
+    ,email_auth
+    ,domain
+    ,canadian_flg
+    ,0 AS deliverable_ind
+    ,email_source
+FROM
+     lt_servpf_email_stg
+WHERE email_address NOT IN (SELECT email_address FROM ${database}.wt_email_d)",['Select values'],['write_email_record']
+Mail Validator,MailValidator,,['Select values'],['If field value is null']
+Select values,SelectValues,,['Get Data from lt_servpf_email'],['Select values']
+write_email_record,TextFileOutput,,['If field value is null'],['Text file output']
+Get Data from lt_servpf_email,TableInput,"SELECT	
+DISTINCT
+ 	 email_address
+	,in_house_permission_flag AS email_auth
+    ,email_active_flag AS email_valid
+ 	,split(email_address, '@')[2] AS domain
+	,(CASE 
+		WHEN SUBSTR(split(email_address, '@')[2], -2) = 'ca'
+			THEN 'Y'
+		ELSE 'N'
+		END) canadian_flg
+    ,'CDS' AS email_source
+    ,publisher_cd
+    ,accnt_nbr
+	,update_dt
+FROM 
+     hrst_data.lt_servpf_email
+WHERE 
+        email_thru_dt = '2099-12-31'
+	AND 
+		update_dt > TIMESTAMP '${update_date}'
+	AND 
+		publisher_cd ${clientcodes} AND LENGTH(email_address) > 0",['Get staged data'],['Replace Null values']
+If field value is null,IfNull,,['Replace Null values'],['Convert email_address to MD5 hash value']
+Select values,SelectValues,,['Insert into wt_email_d'],['Execute SQL script']
+Text file output,TextFileOutput,,['Convert email_address to MD5 hash value'],['Mail Validator']
+Convert email_address to MD5 hash value,CheckSum,,['Mail Validator'],['Replace in string']
+Execute SQL script,ExecSQL,"SET @email_validStream = '?';
+SET @email_authStream = '?';
+
+UPDATE wt_email_d
+	SET email_valid = IF(@email_validStream = 'N',@email_validStream,email_valid),
+	email_auth = IF(@email_authStream = 'N',@email_authStream,email_auth)
+WHERE email_address = '?'",['Replace in string'],['Select values']
+Get staged data,TableInput,"SELECT DISTINCT 
+	 email_address
+	,MIN(email_auth) AS email_auth
+	,MIN(email_valid) AS email_valid
+    ,domain
+	,canadian_flg
+    ,0 AS deliverable_ind
+    ,'CDS' AS email_source
+FROM 
+     lt_servpf_email_stg
+GROUP BY email_address, domain, canadian_flg ",['Select values'],['Insert into wt_email_d']
+Insert into wt_email_d,TableOutput,,['Get email_individual_bridge filenames'],['Write to log']
+Mail Validator,MailValidator,,['Write to log'],['Copy rows to result']
+Replace Null values,IfNull,,['Get email_SPF_fact filenames'],['Write to log']
+Replace in string,ReplaceString,,['Write to log'],['Copy rows to result']
+Select values,SelectValues,,['Get staged data'],['Convert email_address to MD5 hash value']
+Copy rows to result,RowsToResult,,['Convert email_address to MD5 hash value'],['Mail Validator']
+Get email_individual_bridge filenames,GetFileNames,,['Mail Validator'],['Select values']
+Write to log,WriteToLog,,['Select values'],['write_email_record']
+Copy rows to result,RowsToResult,,['Get Data from DL'],['Text file output']
+Get email_SPF_fact filenames,GetFileNames,,['Get Data from DL'],['Replace Null values']
+Write to log,WriteToLog,,['Replace Null values'],['Select columns comes from DL']
+Convert email_address to MD5 hash value,CheckSum,,['Select columns comes from DL'],['Update wt_actual_ship_method_d']
+Get staged data,TableInput,"SELECT DISTINCT 
+     email_address
+    ,email_auth
+    ,domain
+    ,canadian_flg
+    ,0 AS deliverable_ind
+    ,email_source
+FROM
+     lt_servpf_email_stg
+WHERE email_address NOT IN (SELECT email_address FROM ${database}.wt_email_d)",['Update wt_actual_ship_method_d'],['Insert into wt_actual_ship_method_d']
+Mail Validator,MailValidator,,['Get Data from lt_ancillary_charges'],['Replace Null values']
+Select values,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+write_email_record,TextFileOutput,,['Select columns comes from athena'],['Update wt_ancillary_charges_d']
+Get Data from DL,TableInput,"SELECT	
+DISTINCT
+	 email_address
+	,'N' AS email_auth
+	,split(email_address, '@')[1] AS domain
+	,(CASE 
+		WHEN SUBSTR(split(email_address, '@')[1], -2) = 'ca'
+			THEN 'Y'
+		ELSE 'N'
+		END) canadian_flg
+    ,'CDS' AS email_source
+	,update_dt
+FROM 
+     lt_servpf_email
+WHERE 
+        email_thru_dt = '2099-12-31'
+	AND 
+		update_dt > '${update_date}'
+	AND 
+		publisher_cd ${clientcodes} AND LENGTH(email_address) > 0",['Update wt_ancillary_charges_d'],['Insert into wt_ancillary_charges_d']
+Text file output,TextFileOutput,,['Get Data from lt_announcement_status'],['Replace Null values']
+Get Data from DL,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM lt_actual_ship_method",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_actual_ship_method_d,TableOutput,,['Select columns comes from athena'],['Update wt_announcement_status_d']
+Replace Null values,IfNull,,['Update wt_announcement_status_d'],['Insert into wt_announcement_status_d']
+Select columns comes from DL,SelectValues,,['Get Data from lt_application'],['Replace Null values']
+Update wt_actual_ship_method_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_ancillary_charges,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_ancillary_charges",['Select columns comes from athena'],['Update wt_application_d']
+Insert into wt_ancillary_charges_d,TableOutput,,['Update wt_application_d'],['Insert into wt_application_d']
+Replace Null values,IfNull,,['Get Data from lt_availability_code'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Update wt_ancillary_charges_d,Update,,['Select columns comes from athena'],['Update wt_availability_code_d']
+Get Data from lt_announcement_status,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_announcement_status",['Update wt_availability_code_d'],['Insert into wt_availability_code_d']
+Insert into wt_announcement_status_d,TableOutput,,['Get Data from lt_bad_payment_reason'],['Replace Null values']
+Replace Null values,IfNull,,['Replace Null values'],['Select columns comes from athena']
+Select columns comes from athena,SelectValues,,['Select columns comes from athena'],['Update wt_bad_payment_reason_d']
+Update wt_announcement_status_d,Update,,['Update wt_bad_payment_reason_d'],['Insert into wt_bad_payment_reason_d']
+Get Data from lt_application,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_application 
+WHERE LENGTH(source_system_cd) > 0  -- this condition has temporarily been added because source contains bad data. ",['Get Data from lt_bad_payment_type'],['Replace Null values']
+Insert into wt_application_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_bad_payment_type_d']
+Select columns comes from athena,SelectValues,,['Update wt_bad_payment_type_d'],['Insert into wt_bad_payment_type_d']
+Update wt_application_d,Update,,['Get Data from lt_bad_type'],['Replace Null values']
+Get Data from lt_availability_code,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_availability_code",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_availability_code_d,TableOutput,,['Select columns comes from athena'],['Update wt_bad_type_d']
+Replace Null values,IfNull,,['Update wt_bad_type_d'],['Insert into wt_bad_type_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_balance_surplus'],['Replace Null values']
+Update wt_availability_code_d,Update,,['Select columns comes from athena'],['Update wt_balance_surplus_d']
+Get Data from lt_bad_payment_reason,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_bad_payment_reason 
+WHERE LENGTH(source_system_cd) > 0 --this condition has temporarily been added because source contains bad data.",['Update wt_balance_surplus_d'],['Insert into wt_balance_surplus_d']
+Insert into wt_bad_payment_reason_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Get Data from DL'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from DL']
+Update wt_bad_payment_reason_d,Update,,['Select columns comes from DL'],['Update wt_brand_d']
+Get Data from lt_bad_payment_type,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_bad_payment_type",['Update wt_brand_d'],['Insert into wt_brand_d']
+Insert into wt_bad_payment_type_d,TableOutput,,['Update wt_campaign_d'],['Insert into wt_campaign_d']
+Replace Null values,IfNull,,['Get staged data'],['Update wt_campaign_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_change_reason'],['Replace Null values']
+Update wt_bad_payment_type_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_bad_type,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_bad_type",['Select columns comes from athena'],['Update wt_change_reason_d']
+Insert into wt_bad_type_d,TableOutput,,['Update wt_change_reason_d'],['Insert into wt_change_reason_d']
+Replace Null values,IfNull,,['Get Data from lt_charge'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Update wt_bad_type_d,Update,,['Select columns comes from athena'],['Update wt_charge_d']
+Get Data from lt_balance_surplus,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_balance_surplus 
+WHERE LENGTH(source_system_cd) > 0 --this condition has temporarily been added because source contains bad data.",['Update wt_charge_d'],['Insert into wt_charge_d']
+Insert into wt_balance_surplus_d,TableOutput,,['Get staged data'],['Update wt_continuity_plan_d']
+Replace Null values,IfNull,,['Update wt_continuity_plan_d'],['Insert into wt_continuity_plan_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_continuity_switch'],['Replace Null values']
+Update wt_balance_surplus_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from DL,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,TRIM(company_id) AS company_id
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM lt_brand
+WHERE source_system_cd IN ('SERV','SERVPF') -- where condition need to be removed,it has temporarily been added because source has bad data.",['Select columns comes from athena'],['Update wt_continuity_switch_d']
+Insert into wt_brand_d,TableOutput,,['Update wt_continuity_switch_d'],['Insert into wt_continuity_switch_d']
+Replace Null values,IfNull,,['Get Data from lt_currency_type'],['Replace Null values']
+Select columns comes from DL,SelectValues,,['Replace Null values'],['Replace Empty code to USD']
+Update wt_brand_d,Update,,['Replace Empty code to USD'],['Select columns comes from athena']
+Get staged data,TableInput,"SELECT	
+	IFNULL(client_abbr,'NA') AS client_abbr
+   ,IFNULL(product_line_abbr,'NA') AS product_line_abbr
+   ,campaign_name
+   ,IFNULL(campaign_cd,'NA') AS campaign_cd
+FROM lt_campaign_stg",['Select columns comes from athena'],['Update wt_currency_type_d']
+Insert into wt_campaign_d,TableOutput,,['Update wt_currency_type_d'],['Insert into wt_currency_type_d']
+Update wt_campaign_d,Update,,['Get Data from lt_delivery_method'],['Replace Null values']
+Get Data from lt_change_reason,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_change_reason
+WHERE LENGTH(source_system_cd) > 0",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_change_reason_d,TableOutput,,['Select columns comes from athena'],['Update wt_delivery_method_d']
+Replace Null values,IfNull,,['Update wt_delivery_method_d'],['Insert into wt_delivery_method_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_detail_tax_exempt_status'],['Replace Null values']
+Update wt_change_reason_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_charge,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_charge
+WHERE LENGTH(source_system_cd) > 0--  this condition has temporarily been added because source contains bad data.",['Select columns comes from athena'],['Update wt_detail_tax_exempt_status_d']
+Insert into wt_charge_d,TableOutput,,['Update wt_detail_tax_exempt_status_d'],['Insert into wt_detail_tax_exempt_status_d']
+Replace Null values,IfNull,,['Get Data from lt_display_type'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Update wt_charge_d,Update,,['Select columns comes from athena'],['Update wt_display_type_d']
+Get staged data,TableInput,"SELECT
+   client_abbr
+  ,product_line_abbr
+  ,continuity_plan_cd
+  ,continuity_plan_name
+FROM lt_continuity_plan_stg
+",['Update wt_display_type_d'],['Insert into wt_display_type_d']
+Insert into wt_continuity_plan_d,TableOutput,,['Get Data from lt_dummy_key_switch'],['Replace Null values']
+Update wt_continuity_plan_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_continuity_switch,TableInput,"SELECT
+    TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_continuity_switch",['Select columns comes from athena'],['Update wt_dummy_key_switch_d']
+Insert into wt_continuity_switch_d,TableOutput,,['Update wt_dummy_key_switch_d'],['Insert into wt_dummy_key_switch_d']
+Replace Null values,IfNull,,['Get staged data'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Convert email_address to MD5 hash value']
+Update wt_continuity_switch_d,Update,,['Insert into wt_email_d'],['Execute SQL script']
+Get Data from lt_currency_type,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_currency_type",['Convert email_address to MD5 hash value'],['Mail Validator']
+Insert into wt_currency_type_d,TableOutput,,['Mail Validator'],['Replace in string']
+Replace Empty code to USD,ValueMapper,,['Replace in string'],['Select values']
+Replace Null values,IfNull,,['Select values'],['Insert into wt_email_d']
+Select columns comes from athena,SelectValues,,['Get data from lt_enlist'],['Data_Type_Conversion_Rename']
+Update wt_currency_type_d,Update,,['Data_Type_Conversion_Rename'],['Null_Handller']
+Get Data from lt_delivery_method,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_delivery_method",['Null_Handller'],['Upd_wt_enlist_d']
+Insert into wt_delivery_method_d,TableOutput,,['Upd_wt_enlist_d'],['Ins_wt_enlist_d']
+Replace Null values,IfNull,,['Get data from lt_ftc_accept_delay'],['Data_Type_Conversion_Rename']
+Select columns comes from athena,SelectValues,,['Data_Type_Conversion_Rename'],['Null_Handller']
+Update wt_delivery_method_d,Update,,['Null_Handller'],['Upd_wt_ftc_accept_delay_d']
+Get Data from lt_detail_tax_exempt_status,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_detail_tax_exempt_status",['Upd_wt_ftc_accept_delay_d'],['Ins_wt_ftc_accept_delay_d']
+Insert into wt_detail_tax_exempt_status_d,TableOutput,,['Get Data from lt_gift_kit'],['Replace Null values']
+Replace Null values,IfNull,,['Replace Null values'],['Select columns comes from athena']
+Select columns comes from athena,SelectValues,,['Select columns comes from athena'],['Update wt_gift_kit_d']
+Update wt_detail_tax_exempt_status_d,Update,,['Update wt_gift_kit_d'],['Insert into wt_gift_kit_d']
+Get Data from lt_display_type,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_display_type",['Get Data from lt_installments_allowed'],['Replace Null values']
+Insert into wt_display_type_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_installments_allowed_d']
+Select columns comes from athena,SelectValues,,['Update wt_installments_allowed_d'],['Insert into wt_installments_allowed_d']
+Update wt_display_type_d,Update,,['Get Data from lt_invoice_status'],['Replace Null values']
+Get Data from lt_dummy_key_switch,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_dummy_key_switch",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_dummy_key_switch_d,TableOutput,,['Select columns comes from athena'],['Update wt_invoice_status_d']
+Replace Null values,IfNull,,['Update wt_invoice_status_d'],['Insert into wt_invoice_status_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_item_sort_type'],['Replace Null values']
+Update wt_dummy_key_switch_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Convert email_address to MD5 hash value,CheckSum,,['Select columns comes from athena'],['Update wt_item_sort_type_d']
+Execute SQL script,ExecSQL,"SET @email_validStream = '?';
+SET @email_authStream = '?';
+
+UPDATE wt_email_d
+	SET email_valid = IF(@email_validStream = 'N',@email_validStream,email_valid),
+	email_auth = IF(@email_authStream = 'N',@email_authStream,email_auth)
+WHERE email_address = '?'",['Update wt_item_sort_type_d'],['Insert into wt_item_sort_type_d']
+Get staged data,TableInput,"SELECT DISTINCT 
+	 email_address
+	,MIN(email_auth) AS email_auth
+    ,domain
+	,canadian_flg
+    ,0 AS deliverable_ind
+    ,'CDS' AS email_source
+FROM 
+     lt_servpf_email_stg
+GROUP BY email_address, domain, canadian_flg ",['Get Data from lt_miscellaneous_charge'],['Replace Null values']
+Insert into wt_email_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Mail Validator,MailValidator,,['Select columns comes from athena'],['Update wt_miscellaneous_charge_d']
+Replace Null values,IfNull,,['Update wt_miscellaneous_charge_d'],['Insert into wt_miscellaneous_charge_d']
+Replace in string,ReplaceString,,['Get Data from lt_multimarket_promo_status'],['Replace Null values']
+Select values,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Data_Type_Conversion_Rename,SelectValues,,['Select columns comes from athena'],['Update wt_multimarket_promo_status_d']
+Get data from lt_enlist,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_enlist",['Update wt_multimarket_promo_status_d'],['Insert into wt_multimarket_promo_status_d']
+Ins_wt_enlist_d,TableOutput,,['Get Data from lt_new_plan_status '],['Replace Null values']
+Null_Handller,IfNull,,['Select columns comes from athena'],['Update wt_new_plan_status_d']
+Upd_wt_enlist_d,Update,,['Update wt_new_plan_status_d'],['Insert into wt_new_plan_status_d']
+Data_Type_Conversion_Rename,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Get data from lt_ftc_accept_delay,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_ftc_accept_delay",['Get Data from lt_not_pulled_reason'],['Replace Null values']
+Ins_wt_ftc_accept_delay_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Null_Handller,IfNull,,['Select columns comes from athena'],['Update wt_not_pulled_reason_d']
+Upd_wt_ftc_accept_delay_d,Update,,['Update wt_not_pulled_reason_d'],['Insert into wt_not_pulled_reason_d']
+Get Data from lt_gift_kit,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_gift_kit
+",['Get Data from lt_old_plan_status'],['Replace Null values']
+Insert into wt_gift_kit_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_old_plan_status_d']
+Select columns comes from athena,SelectValues,,['Update wt_old_plan_status_d'],['Insert into wt_old_plan_status_d']
+Update wt_gift_kit_d,Update,,['Get Data from lt_order_payment'],['Replace Null values']
+Get Data from lt_installments_allowed,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_installments_allowed",['Select columns comes from athena'],['Update wt_order_payment_d']
+Insert into wt_installments_allowed_d,TableOutput,,['Update wt_order_payment_d'],['Insert into wt_order_payment_d']
+Replace Null values,IfNull,,['Replace Null values'],['Select columns comes from athena']
+Select columns comes from athena,SelectValues,,['Get Data from DL'],['Sort rows selected from DL']
+Update wt_installments_allowed_d,Update,,['Replace Null values'],['Select columns comes from DL']
+Get Data from lt_invoice_status,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_invoice_status",['Sort rows selected from DL'],['Replace Null values']
+Insert into wt_invoice_status_d,TableOutput,,['Select columns comes from DL'],['Update wt_order_set_code_d']
+Replace Null values,IfNull,,['Update wt_order_set_code_d'],['Insert into wt_order_set_code_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_order_type'],['Replace Null values']
+Update wt_invoice_status_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_item_sort_type,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_item_sort_type",['Select columns comes from athena'],['Update wt_order_type_d']
+Insert into wt_item_sort_type_d,TableOutput,,['Update wt_order_type_d'],['Insert into wt_order_type_d']
+Replace Null values,IfNull,,['Get Data from lt_overall_order_status'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Update wt_item_sort_type_d,Update,,['Select columns comes from athena'],['Update wt_overall_order_status_d']
+Get Data from lt_miscellaneous_charge,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_miscellaneous_charge",['Update wt_overall_order_status_d'],['Insert into wt_overall_order_status_d']
+Insert into wt_miscellaneous_charge_d,TableOutput,,['Get Data from lt_override_ship_hand'],['Replace Null values']
+Replace Null values,IfNull,,['Replace Null values'],['Select columns comes from athena']
+Select columns comes from athena,SelectValues,,['Select columns comes from athena'],['Update wt_override_ship_hand_d']
+Update wt_miscellaneous_charge_d,Update,,['Update wt_override_ship_hand_d'],['Insert into wt_override_ship_hand_d']
+Get Data from lt_multimarket_promo_status,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_multimarket_promo_status",['Get Data from lt_payment_adjustment_type'],['Replace Null values']
+Insert into wt_multimarket_promo_status_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_payment_adjustment_type_d']
+Select columns comes from athena,SelectValues,,['Update wt_payment_adjustment_type_d'],['Insert into wt_payment_adjustment_type_d']
+Update wt_multimarket_promo_status_d,Update,,['Get Data from lt_payment_src '],['Replace Null values']
+Get Data from lt_new_plan_status ,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_new_plan_status 
+WHERE LENGTH(source_system_cd) > 0 --this condition has temporarily been added because source contains bad data.",['Select columns comes from athena'],['Update wt_payment_src_d']
+Insert into wt_new_plan_status_d,TableOutput,,['Update wt_payment_src_d'],['Insert into wt_payment_src_d']
+Replace Null values,IfNull,,['Replace Null values'],['Select columns comes from athena']
+Select columns comes from athena,SelectValues,,['Get Data from lt_product_class'],['Replace Null values']
+Update wt_new_plan_status_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_not_pulled_reason,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_not_pulled_reason",['Select columns comes from athena'],['Update wt_product_class_d']
+Insert into wt_not_pulled_reason_d,TableOutput,,['Update wt_product_class_d'],['Insert into wt_product_class_d']
+Replace Null values,IfNull,,['Get Data from lt_product_personalization'],['Data_Type_Conversion_Rename']
+Select columns comes from athena,SelectValues,,['Data_Type_Conversion_Rename'],['Null_Handller']
+Update wt_not_pulled_reason_d,Update,,['Null_Handller'],['Upd_wt_product_personalization_d']
+Get Data from lt_old_plan_status,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_old_plan_status
+WHERE LENGTH(source_system_cd) > 0 --  this condition has temporarily been added because source contains bad data.",['Upd_wt_product_personalization_d'],['Ins_wt_product_personalization_d']
+Insert into wt_old_plan_status_d,TableOutput,,['Get Data from lt_product_type'],['Data_Type_Conversion_Rename']
+Replace Null values,IfNull,,['Data_Type_Conversion_Rename'],['Null_Handller']
+Select columns comes from athena,SelectValues,,['Null_Handller'],['Upd_wt_product_type_d']
+Update wt_old_plan_status_d,Update,,['Upd_wt_product_type_d'],['Ins_wt_product_type_d']
+Get Data from lt_order_payment,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_order_payment 
+WHERE LENGTH(source_system_cd) > 0 --this condition has temporarily been added because source contains bad data.",['Get staged data'],['Update wt_promotion_key_d']
+Insert into wt_order_payment_d,TableOutput,,['Update wt_promotion_key_d'],['Insert into wt_promotion_key_d']
+Replace Null values,IfNull,,['Get Data from lt_reason_return_accepted'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Select columns comes from athena'],['Update wt_reason_return_accepted_d']
+Update wt_order_payment_d,Update,,['Update wt_reason_return_accepted_d'],['Insert into wt_reason_return_accepted_d']
+Get Data from DL,TableInput,"SELECT
+  source_system_cd
+  ,table_name
+  ,system_field_name
+  ,system_cd
+  ,system_name
+  ,system_desc
+  ,modified_by
+  ,modified_dt
+
+FROM lt_gift_set_type where source_system_cd = 'SERVPF'
+
+",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_order_set_code_d,TableOutput,,['Get Data from lt_refund_charge'],['Replace Null values']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_refund_charge_d']
+Select columns comes from DL,SelectValues,,['Update wt_refund_charge_d'],['Insert into wt_refund_charge_d']
+Sort rows selected from DL,SortRows,,['Replace Null values'],['Select columns comes from athena']
+Update wt_order_set_code_d,Update,,['Get Data from lt_refund_method'],['Replace Null values']
+Get Data from lt_order_type,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_order_type
+
+",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_order_type_d,TableOutput,,['Select columns comes from athena'],['Update wt_refund_method_d']
+Replace Null values,IfNull,,['Update wt_refund_method_d'],['Insert into wt_refund_method_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_refund_reason'],['Replace Null values']
+Update wt_order_type_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_overall_order_status,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_overall_order_status",['Select columns comes from athena'],['Update wt_refund_reason_d']
+Insert into wt_overall_order_status_d,TableOutput,,['Update wt_refund_reason_d'],['Insert into wt_refund_reason_d']
+Replace Null values,IfNull,,['Get Data from lt_refund_src'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Update wt_overall_order_status_d,Update,,['Select columns comes from athena'],['Update wt_refund_src_d']
+Get Data from lt_override_ship_hand,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_override_ship_hand",['Update wt_refund_src_d'],['Insert into wt_refund_src_d']
+Insert into wt_override_ship_hand_d,TableOutput,,['Get Data from lt_refund_status '],['Replace Null values']
+Replace Null values,IfNull,,['Replace Null values'],['Select columns comes from athena']
+Select columns comes from athena,SelectValues,,['Select columns comes from athena'],['Update wt_refund_status_d']
+Update wt_override_ship_hand_d,Update,,['Update wt_refund_status_d'],['Insert into wt_refund_status_d']
+Get Data from lt_payment_adjustment_type,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_payment_adjustment_type",['Get Data from lt_reported_undeliverable'],['Replace Null values']
+Insert into wt_payment_adjustment_type_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_reported_undeliverable_d']
+Select columns comes from athena,SelectValues,,['Update wt_reported_undeliverable_d'],['Insert into wt_reported_undeliverable_d']
+Update wt_payment_adjustment_type_d,Update,,['Get Data from lt_return_applied'],['Replace Null values']
+Get Data from lt_payment_src ,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_payment_src 
+WHERE LENGTH(source_system_cd) > 0 --this condition has temporarily been added because source contains bad data.",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_payment_src_d,TableOutput,,['Select columns comes from athena'],['Update wt_return_applied_d']
+Replace Null values,IfNull,,['Update wt_return_applied_d'],['Insert into wt_return_applied_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_return_reason'],['Replace Null values']
+Update wt_payment_src_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_product_class,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_product_class",['Select columns comes from athena'],['Update wt_return_reason_d']
+Insert into wt_product_class_d,TableOutput,,['Update wt_return_reason_d'],['Insert into wt_return_reason_d']
+Replace Null values,IfNull,,['Get Data from lt_return_type'],['Replace Null values']
+Select columns comes from athena,SelectValues,,['Replace Null values'],['Select columns comes from athena']
+Update wt_product_class_d,Update,,['Select columns comes from athena'],['Update wt_return_type_d']
+Data_Type_Conversion_Rename,SelectValues,,['Update wt_return_type_d'],['Insert into wt_return_type_d']
+Get Data from lt_product_personalization,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_product_personalization",['Get data from lt_service_code'],['Data_Type_Conversion_Rename']
+Ins_wt_product_personalization_d,TableOutput,,['Data_Type_Conversion_Rename'],['Null_Handller']
+Null_Handller,IfNull,,['Null_Handller'],['Upd_wt_service_code_d']
+Upd_wt_product_personalization_d,Update,,['Upd_wt_service_code_d'],['Ins_wt_service_code_d']
+Data_Type_Conversion_Rename,SelectValues,,['Get Data from lt_ship_handle_method'],['Replace Null values']
+Get Data from lt_product_type,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_product_type",['Replace Null values'],['Select columns comes from athena']
+Ins_wt_product_type_d,TableOutput,,['Select columns comes from athena'],['Update wt_ship_handle_method_d']
+Null_Handller,IfNull,,['Update wt_ship_handle_method_d'],['Insert into wt_ship_handle_method_d']
+Upd_wt_product_type_d,Update,,['Get data from lt_shipped_status'],['Data_Type_Conversion_Rename']
+Get staged data,TableInput,"SELECT client_abbr,
+    product_line_abbr,
+    new_key,
+    promotion_key,
+    source_cd_1,
+    source_cd_2,
+    source_cd_3,
+    mailed_qty,
+    promotion_ship_days_nbr,
+    promotion_ship_dt,
+    mail_dt,
+    promotion_key_desc,
+    IFNULL(promotion_key_status_cd,'N') AS promotion_key_status_ind,
+    installmens_offered_nbr,
+    IFNULL(shipping_handling_ind,'N') AS shipping_handling_ind,
+    shipping_handling_amt,
+    IFNULL(credit_orders_allowed_cd,'N') AS credit_orders_allowed_cd,
+	CASE IFNULL(credit_orders_allowed_cd,'N')
+		WHEN 'B' THEN 'Bill Me'
+		WHEN 'P' THEN 'Prepay'
+		WHEN 'N' THEN 'Normal'
+		ELSE 'Normal'
+	END AS credit_orders_allowed_name, 
+    campaing_cd,
+    sales_cnt_start_dt,
+    sales_cnt,
+    label_pull_group_cd,
+    bill_category,
+    IFNULL(init_continuity_cd,'N') AS init_continuity_cd,
+	CASE IFNULL(init_continuity_cd,'N')
+		WHEN 'D' THEN 'Defer to product inventory file'
+		WHEN 'Y' THEN 'Initiate order generation process'
+		WHEN 'N' THEN 'Not involved with continuity'
+		ELSE 'Not involved with continuity'
+	END AS init_continuity_name,
+    offer_table,
+    free_trial_days_nbr,
+    continuity_plan_cd,
+    product_nbr_1,
+    continuity_plan_cd_1,
+    product_nbr_2,
+    continuity_plan_cd_2,
+    product_nbr_3,
+    continuity_plan_cd_3,
+    product_nbr_4,
+    continuity_plan_cd_4,
+    product_nbr_5,
+    continuity_plan_cd_5,
+    IFNULL(ftc_exceptions_cd,'N') AS ftc_exceptions_cd,
+	CASE IFNULL(ftc_exceptions_cd,'N')
+		WHEN 'B' THEN 'Both exceptions'
+		WHEN 'C' THEN 'Campaign exceptions'
+		WHEN 'P' THEN 'Promotion key exceptions'
+		WHEN 'N' THEN 'No exceptions'
+		ELSE 'No exceptions'
+	END AS ftc_exceptions_name,
+    product_price_variance_table,
+    days_until_ship_dt_nbr,
+    bypass_credit_check_1,
+    bypass_credit_check_2,
+    bypass_credit_check_3,
+    bypass_credit_check_4,
+    bypass_credit_check_5,
+    bypass_credit_check_6,
+    bypass_credit_check_7,
+    bypass_credit_check_8,
+    bypass_credit_check_9,
+    bypass_credit_check_10,
+    IFNULL(delayed_billing_ind,'N') AS delayed_billing_cd,
+	CASE IFNULL(delayed_billing_ind,'N')
+		WHEN 'A' THEN 'All delay'
+		WHEN 'G' THEN 'Generation delay'
+		WHEN 'O' THEN 'Non-generation delay'
+		WHEN 'N' THEN 'No delay'
+		ELSE 'No delay'
+	END AS delayed_billing_name,
+    daelayed_billing_days_nbr,
+    delayed_billing_dt,
+    first_free_ind,
+    unpaid_credits_nbr,
+    first_paid_ind,
+    finder_number_options_ind,
+    var_key,
+    expire_dt,
+    expire_key,
+    credit_screen_variable,
+    sweeps_ind,
+    late_fees_ind,
+    discount_amt,
+    max_discount_pct,
+    discount_expire_dt,
+    expire_letter_ind,
+    shipping_hndling_group,
+    install_paid,
+    products_allowed_ind,
+    preview_allowed_ind,
+    offer_ovverride_ind,
+    recipt_ship_dt
+FROM lt_promotion_key_stg
+",['Data_Type_Conversion_Rename'],['Null_Handller']
+Insert into wt_promotion_key_d,TableOutput,,['Null_Handller'],['Upd_wt_shipped_status_d']
+Update wt_promotion_key_d,Update,,['Upd_wt_shipped_status_d'],['Ins_wt_shipped_status_d']
+Get Data from lt_reason_return_accepted,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_reason_return_accepted 
+WHERE LENGTH(source_system_cd) > 0 --this condition has temporarily been added because source contains bad data.",['Get Data from lt_actual_ship_method'],['Replace Null values']
+Insert into wt_reason_return_accepted_d,TableOutput,,['Replace Null values'],['Select columns comes from athena']
+Replace Null values,IfNull,,['Select columns comes from athena'],['Update wt_shipping_method_d']
+Select columns comes from athena,SelectValues,,['Update wt_shipping_method_d'],['Insert into wt_shipping_method_d']
+Update wt_reason_return_accepted_d,Update,,['Get Data from lt_write_off_src'],['Replace Null values']
+Get Data from lt_refund_charge,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_refund_charge",['Replace Null values'],['Select columns comes from athena']
+Insert into wt_refund_charge_d,TableOutput,,['Select columns comes from athena'],['Update wt_write_off_src_d']
+Replace Null values,IfNull,,['Update wt_write_off_src_d'],['Insert into wt_write_off_src_d']
+Select columns comes from athena,SelectValues,,['Get Data from lt_write_off'],['Replace Null values']
+Update wt_refund_charge_d,Update,,['Replace Null values'],['Select columns comes from athena']
+Get Data from lt_refund_method,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_refund_method
+WHERE LENGTH(source_system_cd)>0 --  this condition has temporarily been added because source contains bad data.",['Select columns comes from athena'],['Update wt_write_off_d']
+Insert into wt_refund_method_d,TableOutput,,['Update wt_write_off_d'],['Insert into wt_write_off_d']
+Replace Null values,IfNull,,['Get Data from lt_campaign'],['Staged lt_campaign_stg']
+Select columns comes from athena,SelectValues,,['Get Data from lt_continuity_plan'],['Staged CP']
+Update wt_refund_method_d,Update,,['Get Data from lt_promotion_key'],['Staged lt_promotion_key_stg']
+Get Data from lt_refund_reason,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_refund_reason
+WHERE LENGTH(source_system_cd) >0 --  this condition has temporarily been added because source contains bad data.",['Get staged data'],['Product Line Dimension lookup/update']
+Insert into wt_refund_reason_d,TableOutput,,['Get staged data'],['Product Dimension lookup/update']
+Replace Null values,IfNull,,['Get Data from lt_product'],['Replace null values']
+Select columns comes from athena,SelectValues,,['Replace null values'],['Replace 0 and NULL to Default Date']
+Update wt_refund_reason_d,Update,,['Replace 0 and NULL to Default Date'],['Staged lt_product_stg']
+Get Data from lt_refund_src,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_refund_src
+WHERE LENGTH(source_system_cd)>0 --  this condition has temporarily been added because source contains bad data.",['Get Data from lt_product_line'],['Staged lt_product_line_stg']
+Insert into wt_refund_src_d,TableOutput,,['Get staged data'],['Product Dimension lookup/update']
+Replace Null values,IfNull,,['Get Data from DL'],['Replace null values']
+Select columns comes from athena,SelectValues,,['Replace null values'],['Replace 0 and NULL to Default Date']
+Update wt_refund_src_d,Update,,['Replace 0 and NULL to Default Date'],['Staged lt_product_stg']
+Get Data from lt_refund_status ,TableInput,"SELECT  
+	UPPER(TRIM(source_system_cd)) AS source_system_cd
+	,TRIM(table_name) AS table_name
+	,TRIM(system_field_name) AS system_field_name
+	,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+	,TRIM(system_name) AS system_name
+	,TRIM(system_desc) AS system_desc
+	,TRIM(modified_by) AS modified_by
+	,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_refund_status  
+WHERE UPPER(TRIM(source_system_cd)) ${sourcecode}",['Get staged data'],['If field value is null']
+Insert into wt_refund_status_d,TableOutput,,['If field value is null'],['create billkey fact load file']
+Replace Null values,IfNull,,['Get billkey fact filenames'],['Copy rows to result']
+Select columns comes from athena,SelectValues,,['Get billkey stg filenames'],['Write to log']
+Update wt_refund_status_d,Update,,['Write to log'],['Copy rows to result']
+Get Data from lt_reported_undeliverable,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_reported_undeliverable
+WHERE LENGTH(source_system_cd) > 0 --  this condition has temporarily been added because source contains bad data.",['Get data from lt_bill_key'],['If field value is null']
+Insert into wt_reported_undeliverable_d,TableOutput,,['If field value is null'],['create lt_bill_key stage files']
+Replace Null values,IfNull,,['Get data from lt_change_continuity_status_stg'],['Filter rows']
+Select columns comes from athena,SelectValues,,['Filter rows'],['Load staged change_continuity_status hold table']
+Update wt_reported_undeliverable_d,Update,,['Filter rows'],['If field value is null']
+Get Data from lt_return_applied,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_return_applied
+WHERE LENGTH(source_system_cd) > 0 --  this condition has temporarily been added because source contains bad data.",['If field value is null'],['create change_continuity_status fact load file']
+Insert into wt_return_applied_d,TableOutput,,['Get data from lt_change_continuity_status'],['If field value is null']
+Replace Null values,IfNull,,['If field value is null'],['create lt_change_continuity_status stage files']
+Select columns comes from athena,SelectValues,,['Get fact filenames'],['Write to log']
+Update wt_return_applied_d,Update,,['Write to log'],['Copy rows to result']
+Get Data from lt_return_reason,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_return_reason
+WHERE LENGTH(source_system_cd)> 0",['Get File Names'],['Copy rows to result']
+Insert into wt_return_reason_d,TableOutput,,['Get hold filenames'],['Write to log']
+Replace Null values,IfNull,,['Write to log'],['Copy rows to result']
+Select columns comes from athena,SelectValues,,['Select last update date for given table'],['Select values']
+Update wt_return_reason_d,Update,,['Select values'],['Set update date parameter']
+Get Data from lt_return_type,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_return_type
+WHERE LENGTH(source_system_cd) > 0 --  this condition has temporarily been added because source contains bad data.",['Get stage filenames'],['Write to log']
+Insert into wt_return_type_d,TableOutput,,['Write to log'],['Copy rows to result']
+Replace Null values,IfNull,,['Get rows from result'],['Write to log']
+Select columns comes from athena,SelectValues,,['Write to log'],['Set Variables']
+Update wt_return_type_d,Update,,['Filter rows '],['Load staged credit_card_charge hold table']
+Data_Type_Conversion_Rename,SelectValues,,['Get staged data'],['Filter rows ']
+Get data from lt_service_code,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_service_code",['Filter rows '],['If field value is null']
+Ins_wt_service_code_d,TableOutput,,['If field value is null'],['create credit_card_charge fact load file']
+Null_Handller,IfNull,,['Get data from lt_credit_card_charge'],['Text file output']
+Upd_wt_service_code_d,Update,,['If field value is null'],['create credit_card_refund_charge fact load file']
+Get Data from lt_ship_handle_method,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_ship_handle_method",['Filter rows'],['Load staged credit_card_refund_charge hold table']
+Insert into wt_ship_handle_method_d,TableOutput,,['Get data from lt_credit_card_refund_charge_stg'],['Filter rows']
+Replace Null values,IfNull,,['Filter rows'],['If field value is null']
+Select columns comes from athena,SelectValues,,['Get data from lt_credit_card_refund_charge'],['If field value is null']
+Update wt_ship_handle_method_d,Update,,['If field value is null'],['create lt_credit_card_refund_charge stage files']
+Data_Type_Conversion_Rename,SelectValues,,['Get data from lt_negative_option_generation_stg'],['Filter rows']
+Get data from lt_shipped_status,TableInput,"SELECT
+  TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_shipped_status",['Filter rows'],['Load lt_negative_option_generation_hold_stg table']
+Ins_wt_shipped_status_d,TableOutput,,['Filter rows'],['If field value is null']
+Null_Handller,IfNull,,['If field value is null'],['create negative_option_generation fact load file']
+Upd_wt_shipped_status_d,Update,,['Get data from lt_negative_option_generation'],['Text file output']
+Get Data from lt_actual_ship_method,TableInput,"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_actual_ship_method",['Filter rows '],['Load staged order_write_off hold table']
+Insert into wt_shipping_method_d,TableOutput,,['Get staged data'],['Filter rows ']
+Replace Null values,IfNull,,['Filter rows '],['create order_write_off fact load file']
+Select columns comes from athena,SelectValues,,['Get data from lt_order_write_off'],['If field value is null']
+Update wt_shipping_method_d,Update,,['If field value is null'],['create lt_order_write_off stage files']
+Get Data from lt_write_off_src,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_write_off_src
+",['If field value is null'],['create product_cancels fact load file']
+Insert into wt_write_off_src_d,TableOutput,,['Filter rows'],['Load staged product_cancels hold table']
+Replace Null values,IfNull,,['Get data from lt_product_cancels_stg'],['Filter rows']
+Select columns comes from athena,SelectValues,,['Filter rows'],['If field value is null']
+Update wt_write_off_src_d,Update,,['Get data from lt_product_cancel'],['Text file output']
+Get Data from lt_write_off,TableInput,"SELECT
+ TRIM(source_system_cd) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_write_off
+WHERE LENGTH(source_system_cd) > 0",['Get product cancels fact filenames'],['Copy rows to result']
+Insert into wt_write_off_d,TableOutput,,['Get product_cancels stg filenames'],['Write to log']
+Replace Null values,IfNull,,['Write to log'],['Copy rows to result']
+Select columns comes from athena,SelectValues,,['If field value is null'],['create product_combines fact load file']
+Update wt_write_off_d,Update,,['Filter rows'],['Load staged product_combines hold table']
+Get Data from lt_campaign,TableInput,"SELECT 
+	 TRIM(client_abbr) AS client_abbr
+  	,TRIM(product_line_abbr) AS product_line_abbr
+  	,TRIM(campaign_name) AS campaign_name
+  	,IF(campaign_cd=' ', campaign_cd, TRIM(campaign_cd)) AS campaign_cd
+	,update_dt
+FROM hrst_data.lt_campaign
+WHERE client_abbr ${clientcodes} 
+AND update_dt > TIMESTAMP '${update_date}' AND length(campaign_cd) > 0
+
+
+",['Get data from lt_product_combines_stg'],['Filter rows']
+Staged lt_campaign_stg,TableOutput,,['Filter rows'],['If field value is null']
+Get Data from lt_continuity_plan,TableInput,"SELECT
+   update_dt
+  ,client_abbr
+  ,product_line_abbr
+  ,continuity_plan_cd
+  ,continuity_plan_name
+FROM hrst_data.lt_continuity_plan
+WHERE client_abbr ${clientcodes}
+AND update_dt > TIMESTAMP '${update_date}'",['Get data from lt_product_combines'],['If field value is null']
+Staged CP,TableOutput,,['If field value is null'],['create lt_product_combines stage files']
+Get Data from lt_promotion_key,TableInput,"SELECT 
+	TRIM(client_abbr) AS client_abbr,
+    TRIM(product_line_abbr) AS product_line_abbr,
+    TRIM(new_key) AS new_key,
+    TRIM(promotion_key) AS promotion_key,
+    TRIM(source_cd_1) AS source_cd_1,
+    TRIM(source_cd_2) AS source_cd_2,
+    TRIM(source_cd_3) AS source_cd_3,
+    mailed_qty,
+    promotion_ship_days_nbr,
+    promotion_ship_dt,
+    mail_dt,
+    TRIM(promotion_key_desc) AS promotion_key_desc,
+    TRIM(promotion_key_status_cd) AS promotion_key_status_cd,
+    TRIM(installmens_offered_nbr) AS installmens_offered_nbr,
+    TRIM(shipping_handling_ind) AS shipping_handling_ind,
+    shipping_handling_amt,
+    IF(credit_orders_allowed_cd=' ',credit_orders_allowed_cd,TRIM(credit_orders_allowed_cd)) AS credit_orders_allowed_cd,
+    TRIM(campaing_cd) AS campaing_cd,
+    sales_cnt_start_dt,
+    sales_cnt,
+    TRIM(label_pull_group_cd) AS label_pull_group_cd,
+    TRIM(bill_category) AS bill_category,
+    IF(init_continuity_cd=' ',init_continuity_cd,TRIM(init_continuity_cd)) AS init_continuity_cd,
+    TRIM(offer_table) AS offer_table,
+    TRIM(free_trial_days_nbr) AS free_trial_days_nbr,
+    TRIM(continuity_plan_cd) AS continuity_plan_cd,
+    TRIM(product_nbr_1) AS product_nbr_1,
+    TRIM(continuity_plan_cd_1) AS continuity_plan_cd_1,
+    TRIM(product_nbr_2) AS product_nbr_2,
+    TRIM(continuity_plan_cd_2) AS continuity_plan_cd_2,
+    TRIM(product_nbr_3) AS product_nbr_3,
+    TRIM(continuity_plan_cd_3) AS continuity_plan_cd_3,
+    TRIM(product_nbr_4) AS product_nbr_4,
+    TRIM(continuity_plan_cd_4) AS continuity_plan_cd_4,
+    TRIM(product_nbr_5) AS product_nbr_5,
+    TRIM(continuity_plan_cd_5) AS continuity_plan_cd_5,
+    IF(ftc_exceptions_cd=' ',ftc_exceptions_cd,TRIM(ftc_exceptions_cd)) AS ftc_exceptions_cd,
+    TRIM(product_price_variance_table) AS product_price_variance_table,
+    days_until_ship_dt_nbr,
+    TRIM(bypass_credit_check_1) AS bypass_credit_check_1,
+    TRIM(bypass_credit_check_2) AS bypass_credit_check_2,
+    TRIM(bypass_credit_check_3) AS bypass_credit_check_3,
+    TRIM(bypass_credit_check_4) AS bypass_credit_check_4,
+    TRIM(bypass_credit_check_5) AS bypass_credit_check_5,
+    TRIM(bypass_credit_check_6) AS bypass_credit_check_6,
+    TRIM(bypass_credit_check_7) AS bypass_credit_check_7,
+    TRIM(bypass_credit_check_8) AS bypass_credit_check_8,
+    TRIM(bypass_credit_check_9) AS bypass_credit_check_9,
+    TRIM(bypass_credit_check_10) AS bypass_credit_check_10,
+    IF(delayed_billing_ind=' ',delayed_billing_ind,TRIM(delayed_billing_ind)) AS delayed_billing_ind,
+    daelayed_billing_days_nbr,
+    delayed_billing_dt,
+    TRIM(first_free_ind) AS first_free_ind,
+    unpaid_credits_nbr,
+    TRIM(first_paid_ind) AS first_paid_ind,
+    TRIM(finder_number_options_ind) AS finder_number_options_ind,
+    TRIM(var_key) AS var_key,
+    expire_dt,
+    TRIM(expire_key) AS expire_key,
+    TRIM(credit_screen_variable) AS credit_screen_variable,
+    TRIM(sweeps_ind) AS sweeps_ind,
+    TRIM(late_fees_ind) AS late_fees_ind,
+    discount_amt,
+    max_discount_pct,
+    discount_expire_dt,
+    TRIM(expire_letter_ind) AS expire_letter_ind,
+    TRIM(shipping_hndling_group) AS shipping_hndling_group,
+    TRIM(install_paid) AS install_paid,
+    TRIM(products_allowed_ind) AS products_allowed_ind,
+    preview_allowed_ind,
+    TRIM(offer_ovverride_ind) AS offer_ovverride_ind,
+    recipt_ship_dt,
+    update_dt
+FROM hrst_data.lt_promotion_key
+WHERE TRIM(client_abbr) ${clientcodes} AND update_dt > TIMESTAMP '${update_date}'
+		",['Get data from wt_product_order_summary_f'],['create product_order  fact load file']
+Staged lt_promotion_key_stg,TableOutput,,['Get staged data'],['create product_order_agg  fact load file']
+Get staged data,TableInput,"SELECT 
+     publisher_cd
+    ,product_line_abbr
+    ,product_line_name
+    ,update_dt
+FROM lt_product_line_stg",['Get data from wt_product_order_summary_f'],['create product_order_agg_stage files']
+Product Line Dimension lookup/update,DimensionLookup,,['Get staged data'],['Filter rows']
+Get staged data,TableInput,"SELECT 
+     p.publisher_cd
+	,p.product_sku
+	,p.product_size
+	,p.product_style
+	,p.product_color
+	,p.product_desc
+	,p.combined_into_product_nbr
+	,p.combined_into_product_size
+	,p.combined_into_product_style
+	,p.combined_into_product_color
+	,p.product_type
+	,p.product_class
+	,p.retail_value
+	,p.clients_cost_amt
+	,p.handling_amt
+	,p.distributors_product_nbr
+	,p.can_retail_amt
+	,p.can_shipping_handling_amt
+	,p.continuity_plan_cd
+	,p.upsell_item_flag
+	,p.isbn_nbr
+	,p.publication_dt
+	,p.item_exempt_from_s_h_flag
+	,p.item_exempt_from_discnt
+	,p.fast_shipping_flag
+	,p.shipping_handling_charge_extra
+	,p.preview_ind
+	,p.preview_days
+	,p.preview_value
+	,p.update_dt
+    ,pt.product_type_name
+    ,pc.product_class_name
+    ,affinity_cd
+    ,affinity_name
+    ,product_media_cd
+    ,product_media_name
+    ,product_language_cd
+    ,case product_language_cd when 'S' THEN ' Spanish' when 'E' THEN 'English' else 'Not Defined' END  as 'product_language_name'
+    ,brand_cd,brand_name
+FROM lt_product_stg AS p 
+LEFT JOIN ${database}.wt_product_type_d AS pt ON pt.product_type_cd = p.product_type
+LEFT JOIN ${database}.wt_product_class_d AS pc ON pc.product_class_cd = p.product_class
+
+",['Filter rows'],['Select Values']
+Product Dimension lookup/update,DimensionLookup,,['Filter rows'],['lt_product_order_detail_hold_stg File']
+Get Data from lt_product,TableInput,"SELECT 
+ 	 publisher_cd	
+	,product_sku
+	,product_size
+	,product_style
+	,product_color
+	,product_desc
+	,combined_into_product_nbr
+	,combined_into_product_size
+	,combined_into_product_style
+	,combined_into_product_color
+	,product_type
+	,product_class
+	,retail_value
+	,clients_cost_amt
+	,handling_amt
+	,distributors_product_nbr
+	,can_retail_amt
+	,can_shipping_handling_amt
+	,continuity_plan_cd
+	,upsell_item_flag
+	,isbn_nbr
+	,publication_dt
+	,item_exempt_from_s_h_flag
+	,item_exempt_from_discnt
+	,fast_shipping_flag
+	,shipping_handling_charge_extra
+	,preview_ind
+	,preview_days
+    ,preview_value
+	,update_dt
+	,lp.affinity_code as affinity_cd
+	,la.system_name as affinity_name
+	,lp.product_media as product_media_cd
+	,lm.system_name as product_media_name
+	,lp.product_language as product_language_cd
+	,lp.brand as brand_cd
+	,lb.brand_name 
+FROM hrst_data.lt_product lp
+left join hrst_data.lt_affinity la on la.system_cd=lp.affinity_code and la.system_field_name='AFFINITY_CD' and la.company_id ='${company_id}'
+left join hrst_data.lt_product_media lm on lm.system_cd=lp.product_media and lm.SYSTEM_FIELD_NAME='PRODUCT_MEDIA_CD' and lm.company_id ='${company_id}'
+left join hrst_data.lt_brand lb on lb.brand_cd =lp.brand and lb.system_field_name='BRAND_CD' and lb.company_id=${company_id}
+WHERE publisher_cd ${clientcodes} 
+AND update_dt > TIMESTAMP '${update_date}'
+AND change_type_cd<>'D' 
+",['Select Values'],['Text file output']
+Replace 0 and NULL to Default Date,ValueMapper,,['Get data from DL'],['lt_product_order_detail_stg File']
+Replace null values,IfNull,,['Get staged data'],['Filter rows']
+Staged lt_product_stg,TableOutput,,['Filter rows'],['Load staged product order summary hold table']
+Get Data from lt_product_line,TableInput,"SELECT 
+ publisher_cd
+ ,product_line_abbr
+ ,product_name as product_line_name
+ ,update_dt
+FROM hrst_data.lt_product_line
+WHERE publisher_cd ${clientcodes} 
+AND update_dt > TIMESTAMP'${update_date}'",['Filter rows'],['Select values']
+Staged lt_product_line_stg,TableOutput,,['Select values'],['create product_order_summary fact load file']
+Get staged data,TableInput,"SELECT 
+     p.publisher_cd
+	,p.product_sku
+	,p.product_size
+	,p.product_style
+	,p.product_color
+	,p.product_desc
+	,p.combined_into_product_nbr
+	,p.combined_into_product_size
+	,p.combined_into_product_style
+	,p.combined_into_product_color
+	,p.product_type
+	,p.product_class
+	,p.retail_value
+	,p.clients_cost_amt
+	,p.handling_amt
+	,p.distributors_product_nbr
+	,p.can_retail_amt
+	,p.can_shipping_handling_amt
+	,p.continuity_plan_cd
+	,p.upsell_item_flag
+	,p.isbn_nbr
+	,p.publication_dt
+	,p.item_exempt_from_s_h_flag
+	,p.item_exempt_from_discnt
+	,p.fast_shipping_flag
+	,p.shipping_handling_charge_extra
+	,p.preview_ind
+	,p.preview_days
+	,p.preview_value
+	,p.update_dt
+    ,pt.product_type_name
+    ,pc.product_class_name
+FROM lt_product_stg AS p 
+LEFT JOIN ${database}.wt_product_type_d AS pt ON pt.product_type_cd = p.product_type
+LEFT JOIN ${database}.wt_product_class_d AS pc ON pc.product_class_cd = p.product_class
+
+",['Filter rows'],['create product_order_summary hold load file']
+Product Dimension lookup/update,DimensionLookup,,['Get data from DL'],['Select values']
+Get Data from DL,TableInput,"SELECT 
+ 	 publisher_cd	
+	,product_sku
+	,product_size
+	,product_style
+	,product_color
+	,product_desc
+	,combined_into_product_nbr
+	,combined_into_product_size
+	,combined_into_product_style
+	,combined_into_product_color
+	,product_type
+	,product_class
+	,retail_value
+	,clients_cost_amt
+	,handling_amt
+	,distributors_product_nbr
+	,can_retail_amt
+	,can_shipping_handling_amt
+	,continuity_plan_cd
+	,upsell_item_flag
+	,isbn_nbr
+	,publication_dt
+	,item_exempt_from_s_h_flag
+	,item_exempt_from_discnt
+	,fast_shipping_flag
+	,shipping_handling_charge_extra
+	,preview_ind
+	,preview_days
+    ,preview_value
+	,update_dt
+FROM lt_product
+WHERE publisher_cd ${clientcodes} 
+AND update_dt > '${update_date}'
+AND change_type_cd<>'D' ",['Select values'],['Text file output']
+Replace 0 and NULL to Default Date,ValueMapper,,['Get data from lt_product_payments_stg'],['Filter rows']
+Replace null values,IfNull,,['Filter rows'],['If field value is null']
+Staged lt_product_stg,TableOutput,,['Filter rows'],['Load staged lt_product_payments_hold_stg table']
+Get staged data,TableInput,"SELECT
+      bk.client_abbr
+	, IF(((bk.product_line_abbr IS NULL) OR (bk.product_line_abbr='')),'NA',bk.product_line_abbr) AS product_line_abbr
+	, IFNULL(pl.product_line_sk,-1) AS product_line_sk
+	, bk.bill_key
+    , bk.mail_dt
+    , IFNULL(bk.mailed_qty,0) AS mailed_qty
+    , IFNULL(bk.payment_nbr,0) AS payment_nbr
+	, IFNULL(bk.return_nbr,0) AS return_nbr
+    , IFNULL(bk.cancels_nbr,0) AS cancels_nbr
+    , IFNULL(bk.partial_pay_nbr,0) AS partial_pay_nbr
+    , IFNULL(bk.paid_amt,0) AS paid_amt
+	, IFNULL(bk.billed_amt,0) AS billed_amt
+    , IFNULL(bk.total_amt,0) AS total_amt
+FROM lt_bill_key_stg bk
+LEFT JOIN ${database}.wt_product_line_d pl ON pl.publisher_cd = bk.client_abbr 
+				AND pl.product_line_abbr = bk.product_line_abbr AND curr_rec_ind = 1
+
+",['If field value is null'],['create product_payments fact load file']
+If field value is null,IfNull,,['Get data from lt_product_payment'],['create lt_product_payment stage files']
+create billkey fact load file,TextFileOutput,,['Get data from lt_refunds_stg'],['Filter rows']
+Copy rows to result,RowsToResult,,['Filter rows'],['Load staged refunds hold table']
+Get billkey fact filenames,GetFileNames,,['Filter rows'],['If field value is null']
+Copy rows to result,RowsToResult,,['If field value is null'],['create refunds fact load file']
+Get billkey stg filenames,GetFileNames,,['Get data from lt_refunds'],['create lt_refunds stage files']
+Write to log,WriteToLog,,['If field value is null'],['create returned_payment fact load file']
+Get data from lt_bill_key,TableInput,"SELECT 
+	 l.client_abbr
+	,l.product_line_abbr
+	,l.bill_key
+	,IF(l.mail_dt IS NULL,DATE('1900-01-01'),l.mail_dt) AS mail_dt
+	,COALESCE(l.mailed_qty,0) AS mailed_qty
+	,COALESCE(l.payment_nbr,0) AS payment_nbr
+	,COALESCE(l.return_nbr,0) AS return_nbr
+	,COALESCE(l.cancels_nbr,0) AS cancels_nbr
+	,COALESCE(l.partial_pay_nbr,0) AS partial_pay_nbr
+	,COALESCE(l.paid_amt,0) AS paid_amt
+	,COALESCE(l.billed_amt,0) AS billed_amt
+	,COALESCE(l.total_amt,0) AS total_amt
+	,l.update_dt
+FROM hrst_data.lt_bill_key l
+WHERE l.client_abbr ${clientcodes} 
+AND update_dt > TIMESTAMP '${update_date}'
+
+",['Filter rows'],['Load lt_returned_payment_hold_stg table']
+If field value is null,IfNull,,['Get data from lt_returned_payment_stg'],['Filter rows']
+create lt_bill_key stage files,TextFileOutput,,['Filter rows'],['If field value is null']
+Filter rows,FilterRows,,['Get data from lt_returned_payment'],['If field value is null']
+Get data from lt_change_continuity_status_stg,TableInput,"SELECT 
+	 ccs.client_abbr
+	,ccs.accnt_nbr
+    ,IFNULL(id.individual_sk,-1) AS individual_sk
+	,ccs.transaction_nbr
+	,ccs.operator_id
+	,ccs.transaction_type_cd
+	,ccs.product_line_abbr
+	,IFNULL(pl.product_line_sk,-1) AS product_line_sk
+	,ccs.donor_accnt_nbr
+	,ccs.old_plan_status_cd
+	,IFNULL(ops.old_plan_status_sk,-1) AS old_plan_status_sk
+	,ccs.new_plan_status_cd
+	,IFNULL(nps.new_plan_status_sk,-1) AS new_plan_status_sk
+	,ccs.continuity_plan_cd
+	,IFNULL(cp.continuity_plan_sk,-1) AS continuity_plan_sk
+	,ccs.order_nbr
+	,ccs.change_reason_cd
+	,IFNULL(cr.change_reason_sk,-1) AS change_reason_sk
+	,ccs.seq_nbr
+    ,ccs.update_dt
+FROM lt_change_continuity_status_stg ccs
+LEFT JOIN source_xref_stg sx ON sx.publisher_code = ccs.client_abbr  AND sx.system_id = ccs.accnt_nbr AND sx.system_code = 'SERVPF'
+LEFT JOIN ${database}.wt_individual_d id ON id.universal_id = sx.universal_id AND id.curr_rec_ind = 1
+LEFT JOIN ${database}.wt_product_line_d pl ON pl.product_line_abbr = ccs.product_line_abbr AND pl.publisher_cd = ccs.client_abbr AND pl.curr_rec_ind = 1
+LEFT JOIN ${database}.wt_old_plan_status_d ops ON ops.old_plan_status_cd = ccs.old_plan_status_cd
+LEFT JOIN ${database}.wt_new_plan_status_d nps ON nps.new_plan_status_cd = ccs.new_plan_status_cd
+LEFT JOIN ${database}.wt_continuity_plan_d cp ON cp.continuity_plan_cd = ccs.continuity_plan_cd AND
+cp.client_abbr = ccs.client_abbr AND cp.product_line_abbr = ccs.product_line_abbr
+LEFT JOIN ${database}.wt_change_reason_d cr ON cr.change_reason_cd = ccs.change_reason_cd
+",['If field value is null'],['create lt_returned_payment stage files']
+If field value is null,IfNull,,['Filter rows '],['Load staged returns hold table']
+Load staged change_continuity_status hold table,TableOutput,,['Get staged data'],['Filter rows ']
+create change_continuity_status fact load file,TextFileOutput,,['Filter rows '],['create returns fact load file']
+Get data from lt_change_continuity_status,TableInput,"SELECT 
+	 client_abbr
+	,accnt_nbr
+	,transaction_nbr
+	,operator_id
+	,transaction_type_cd
+	,product_line_abbr
+	,donor_accnt_nbr
+ 	,old_plan_status_cd
+	,new_plan_status_cd
+	,continuity_plan_cd
+ 	,order_nbr 
+	,change_reason_cd
+	,seq_nbr
+	,update_dt
+FROM hrst_data.lt_change_continuity_status
+WHERE client_abbr ${clientcodes}
+AND update_dt > TIMESTAMP '${update_date}'
+
+",['Get data from lt_returns'],['Replace Null values ']
+If field value is null,IfNull,,['Replace Null values '],['create lt_returns stage files']
+create lt_change_continuity_status stage files,TextFileOutput,,['Filter rows '],['Load staged write_off_reversal hold table']
+Copy rows to result,RowsToResult,,['Get staged data'],['Filter rows ']
+Get fact filenames,GetFileNames,,['Filter rows '],['If field value is null']
+Write to log,WriteToLog,,['If field value is null'],['create write_off_reversal fact load file']
+Copy rows to result,RowsToResult,,['Get data from lt_write_off_reversal'],['If field value is null']
+Get File Names,GetFileNames,,['If field value is null'],['create lt_write_off_reversal stage files']

@@ -1,0 +1,12 @@
+hop,name,type
+"[<hop>
+<from>select_maint_dt/flag value</from>
+<to>Select values</to>
+<enabled>Y</enabled>
+</hop>, <hop>
+<from>Select values</from>
+<to>Set maint_dt/flag_count parameter</to>
+<enabled>Y</enabled>
+</hop>]"
+"[<name>get_maint_dt/flag_value</name>, <name>ID_BATCH</name>, <name>CHANNEL_ID</name>, <name>TRANSNAME</name>, <name>STATUS</name>, <name>LINES_READ</name>, <name>LINES_WRITTEN</name>, <name>LINES_UPDATED</name>, <name>LINES_INPUT</name>, <name>LINES_OUTPUT</name>, <name>LINES_REJECTED</name>, <name>ERRORS</name>, <name>STARTDATE</name>, <name>ENDDATE</name>, <name>LOGDATE</name>, <name>DEPDATE</name>, <name>REPLAYDATE</name>, <name>LOG_FIELD</name>, <name>EXECUTING_SERVER</name>, <name>EXECUTING_USER</name>, <name>CLIENT</name>, <name>ID_BATCH</name>, <name>SEQ_NR</name>, <name>LOGDATE</name>, <name>TRANSNAME</name>, <name>STEPNAME</name>, <name>STEP_COPY</name>, <name>LINES_READ</name>, <name>LINES_WRITTEN</name>, <name>LINES_UPDATED</name>, <name>LINES_INPUT</name>, <name>LINES_OUTPUT</name>, <name>LINES_REJECTED</name>, <name>ERRORS</name>, <name>INPUT_BUFFER_ROWS</name>, <name>OUTPUT_BUFFER_ROWS</name>, <name>ID_BATCH</name>, <name>CHANNEL_ID</name>, <name>LOG_DATE</name>, <name>LOGGING_OBJECT_TYPE</name>, <name>OBJECT_NAME</name>, <name>OBJECT_COPY</name>, <name>REPOSITORY_DIRECTORY</name>, <name>FILENAME</name>, <name>OBJECT_ID</name>, <name>OBJECT_REVISION</name>, <name>PARENT_CHANNEL_ID</name>, <name>ROOT_CHANNEL_ID</name>, <name>ID_BATCH</name>, <name>CHANNEL_ID</name>, <name>LOG_DATE</name>, <name>TRANSNAME</name>, <name>STEPNAME</name>, <name>STEP_COPY</name>, <name>LINES_READ</name>, <name>LINES_WRITTEN</name>, <name>LINES_UPDATED</name>, <name>LINES_INPUT</name>, <name>LINES_OUTPUT</name>, <name>LINES_REJECTED</name>, <name>ERRORS</name>, <name>LOG_FIELD</name>, <name>ID_BATCH</name>, <name>CHANNEL_ID</name>, <name>LOG_DATE</name>, <name>METRICS_DATE</name>, <name>METRICS_CODE</name>, <name>METRICS_DESCRIPTION</name>, <name>METRICS_SUBJECT</name>, <name>METRICS_TYPE</name>, <name>METRICS_VALUE</name>, <name>marketingdb_stg</name>, <name>Select values</name>, <name>maint_dt</name>, <name>flag_count</name>, <name>maint_dt</name>, <name>Set maint_dt/flag_count parameter</name>, <name>select_maint_dt/flag value</name>]"
+"[<type>MYSQL</type>, <type>SelectValues</type>, <type>Date</type>, <type>SetVariable</type>, <type>TableInput</type>]"

@@ -15,6 +15,7 @@ def removePathVariable(path):
 def parseJob(file):
     print(file)
     job=Job()
+
     tree=et.parse(file)
     root =tree.getroot()
     job.name= root.find("./name").text
@@ -63,7 +64,6 @@ jobList = []
 for filename in getFileNames(path):
     try:
         job = parseJob(path + "\\" + filename)
-
         jobList.append(job)
     except Exception as e:
         print (e)

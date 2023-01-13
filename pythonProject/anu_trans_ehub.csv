@@ -1,0 +1,701 @@
+name,type,sql,from,to
+Convert email_address to MD5 hash value,CheckSum,,['Get staged data'],['Convert email_address to MD5 hash value']
+Get staged data,TableInput,"SELECT DISTINCT 
+	 email_addr
+	,MIN(email_auth) AS email_auth
+    ,MIN(email_valid) AS email_valid
+    ,domain
+	,canadian_flg
+    ,0 AS deliverable_ind
+    ,email_source
+FROM 
+     emails_stg
+WHERE email_addr NOT IN (SELECT email_address FROM ${database}.wt_email_d)
+GROUP BY  email_addr, domain, canadian_flg",['Convert email_address to MD5 hash value'],['Mail Validator']
+Mail Validator,MailValidator,,['Mail Validator'],['Select values']
+Select values,SelectValues,,['Select values'],['write_email_record']
+write_email_record,TextFileOutput,,['Get Data from doms'],['Text file output']
+Get Data from doms,TableInput,"SELECT 
+	 LOWER(email_addr) AS email_addr
+    ,email_opt_ind
+    ,email_valid_ind
+    ,SUBSTRING_INDEX(email_addr, '@', -1) AS domain
+    ,(CASE
+        WHEN
+            SUBSTR(SUBSTRING_INDEX(email_addr, '@', -1),
+                - 2) = 'ca'
+        THEN
+            'Y'
+        ELSE 'N'
+     END) canadian_flg
+    ,(CASE
+        WHEN email_valid_ind = 1 THEN 'Y'
+        ELSE 'N'
+     END) AS email_valid
+    ,(CASE
+        WHEN email_opt_ind = 1 THEN 'Y'
+        ELSE 'N'
+     END) AS email_auth
+    ,'CDS' AS email_source
+    ,e.update_date
+    ,client_cd
+    ,customer_id
+FROM
+    emails e
+    INNER JOIN
+    ${eHub_database}_data.client_dimensions cd ON e.client_id = cd.client_id 
+
+WHERE cd.instance_flag = 'P' AND cd.client_cd ${ehubclientcodes} AND e.update_date > '${update_date}'",['Filter rows'],['Load staged ehub_email_individual_bridge hold table']
+Text file output,TextFileOutput,,['Get staged data'],['Filter rows']
+Filter rows,FilterRows,,['Filter rows'],['create_email_individual_bridge_fact_load_file']
+Get staged data,TableInput,"SELECT
+ IFNULL(id.individual_sk,-1) as individual_sk
+,IFNULL(em.email_sk,-1) as email_sk
+,s.customer_id
+,email_addr
+,client_cd
+,s.update_date
+,s.email_opt_ind
+,s.email_valid_ind
+,s.domain
+,s.canadian_flg
+,s.email_source
+,s.email_auth
+,s.email_valid
+FROM emails_stg s
+LEFT JOIN source_xref_stg sx on sx.system_code='EHUB' and sx.publisher_code = s.client_cd and sx.system_id = s.customer_id 
+LEFT JOIN ${database}.wt_individual_d id on id.universal_id=sx.universal_id
+INNER JOIN ${database}.wt_email_d em on em.email_address = s.email_addr",['Get staged data'],['Replace Null values']
+Load staged ehub_email_individual_bridge hold table,TableOutput,,['Replace Null values'],['Convert email_address to MD5 hash value']
+create_email_individual_bridge_fact_load_file,TextFileOutput,,['Convert email_address to MD5 hash value'],['Mail Validator']
+Convert email_address to MD5 hash value,CheckSum,,['Mail Validator'],['Replace in string']
+Execute SQL script,ExecSQL,"SET @email_validStream = '?';
+SET @email_authStream = '?';
+
+UPDATE wt_email_d
+	SET email_valid = IF(@email_validStream = 'N',@email_validStream,email_valid),
+	email_auth = IF(@email_authStream = 'N',@email_authStream,email_auth)
+WHERE email_address =  '?'",['Replace in string'],['Select values']
+Get staged data,TableInput,"SELECT DISTINCT 
+	 email_addr
+	,MIN(email_auth) AS email_auth
+    ,MIN(email_valid) AS email_valid
+    ,domain
+	,canadian_flg
+    ,0 AS deliverable_ind
+    ,email_source
+FROM 
+     emails_stg
+GROUP BY  email_addr, domain, canadian_flg",['Select values'],['Insert into wt_email_d']
+Insert into wt_email_d,TableOutput,,['Insert into wt_email_d'],['Execute SQL script']
+Mail Validator,MailValidator,,['Get email_individual_bridge filenames'],['Write to log']
+Replace Null values,IfNull,,['Write to log'],['Copy rows to result']
+Replace in string,ReplaceString,,['Update wt_cancel_reason_d'],['Insert into wt_cancel_reason_d']
+Select values,SelectValues,,['Get Data from eHub'],['Update wt_cancel_reason_d']
+Copy rows to result,RowsToResult,,['Get Data from DL'],['Replace Null values']
+Get email_individual_bridge filenames,GetFileNames,,['Replace Null values'],['Select columns comes from DL']
+Write to log,WriteToLog,,['Select columns comes from DL'],['Update wt_card_type_d']
+Get Data from eHub,TableInput,"SELECT
+   'EHUB'AS source_system_cd
+  ,'doms_staging.subscriptions' AS table_name
+  ,'reason_id' AS system_field_name 
+  ,CONCAT(TRIM(CAST(rd.client_id AS CHAR(10))),':',TRIM(CAST(rd.reason_id AS CHAR(10)))) AS cancel_reason_cd
+  ,IFNULL(TRIM(rd.reason_type),'NA') AS cancel_reason_name
+  ,IFNULL(TRIM(rd.reason_desc), 'NA') AS cancel_reason_desc
+  ,'EHUB' AS modified_by
+FROM client_dimensions cd
+INNER JOIN reason_dimensions rd ON rd.client_id = cd.client_id 
+WHERE cd.instance_flag ='P' AND cd.client_cd ${ehubclientcodes}",['Update wt_card_type_d'],['Insert Into wt_card_type_d']
+Insert into wt_cancel_reason_d,TableOutput,,['Get staged data'],['Update wt_components_d']
+Update wt_cancel_reason_d,Update,,['Update wt_components_d'],['Insert into wt_components_d']
+Get Data from DL,TableInput,"SELECT
+  UPPER(TRIM(source_system_cd)) AS source_system_cd
+, TRIM(table_name) AS table_name
+, TRIM(system_field_name) AS system_field_name
+, IF(system_cd=' ',system_cd,TRIM(system_cd)) AS system_cd
+, TRIM(system_name) AS system_name
+, TRIM(system_desc) AS system_desc
+, TRIM(modified_by) AS modified_by
+, TRIM(modified_dt) AS modified_dt
+FROM lt_card_type
+WHERE LENGTH(source_system_cd) > 0  -- this condition has temporarily been added because source contains bad data.",['Update wt_digital_gift_certificate_d'],['Insert into wt_digital_gift_certificate_d']
+Insert Into wt_card_type_d,TableOutput,,['Get staged data'],['Update wt_digital_gift_certificate_d']
+Replace Null values,IfNull,,['Get staged data'],['Update wt_digital_products_d']
+Select columns comes from DL,SelectValues,,['Update wt_digital_products_d'],['Insert into wt_digital_products_d']
+Update wt_card_type_d,Update,,['Get Data from eHub'],['Update wt_doms_reason_d']
+Get staged data,TableInput,"SELECT 
+    cs.client_ID
+    ,cs.pkg_ID
+    ,cs.pkg_set_ID
+    ,cs.product_ID
+    ,cs.parent_sku
+    ,IFNULL(pd.product_sk,-1) AS product_sk
+    ,cs.pkg_comp_pct
+    ,IFNULL(cs.acctg_CD,'NA') AS acctg_CD
+FROM components_stg cs
+LEFT JOIN ${database}.wt_digital_products_d pd ON pd.client_id = cs.client_id AND pd.product_id = cs.product_id
+",['Update wt_doms_reason_d'],['Insert into wt_doms_reason_d']
+Insert into wt_components_d,TableOutput,,['Get staged data'],['Replace Null values']
+Update wt_components_d,Update,,['Replace Null values'],['Convert email_address to MD5 hash value']
+Get staged data,TableInput,"SELECT
+	 dgc.client_ID
+	,dgc.etificate_ID
+	,dgc.etificate_sku
+	,dgc.etificate_sku_desc
+	,dgc.etificate_status
+	,dgc.product_type
+	,dgc.etificate_vendor
+	,dgc.min_etificate_price
+	,dgc.max_etificate_price
+	,dgc.etificate_currency
+	,IFNULL(c.currency_sk , -1) AS currency_sk
+	,dgc.etificate_tax_class
+	,dgc.etificate_category
+	,dgc.trans_source
+FROM digital_gift_certificate_stg dgc
+LEFT JOIN ${database}.wt_currency_d c ON c.currency_cd = dgc.etificate_currency AND UPPER(c.source_system_cd) = 'EHUB'",['Insert into wt_email_d'],['Execute SQL script']
+Insert into wt_digital_gift_certificate_d,TableOutput,,['Convert email_address to MD5 hash value'],['Mail Validator']
+Update wt_digital_gift_certificate_d,Update,,['Mail Validator'],['Replace in string']
+Get staged data,TableInput,"SELECT
+	 dp.client_ID
+	,dp.client_cd
+	,dp.product_ID
+	,dp.parent_sku
+	,dp.parent_sku_desc
+	,dp.product_status
+	,dp.product_type
+	,dp.earnings_plan
+	,dp.product_price
+	,product_currency
+	,IFNULL(c.currency_sk, -1) AS currency_sk
+	,dp.product_tax_class
+	,dp.billing_period_unit
+	,dp.billing_frequency
+	,dp.billing_max_cycles
+	,dp.trans_src
+	,dp.manual_refund_rule
+	,dp.maximum_refund_for_lifetime_value
+	,dp.cancellation_rule
+	,dp.serv_term
+	,dp.serv_mag_abbr
+	,dp.serv_dockey
+	,dp.serv_product_url
+FROM digital_products_stg dp
+LEFT JOIN ${database}.wt_currency_d c ON c.currency_cd = dp.product_currency AND UPPER(c.source_system_cd) = 'EHUB'",['Replace in string'],['Insert into wt_email_d']
+Insert into wt_digital_products_d,TableOutput,,['Get staged data'],['Update wt_offers_d']
+Update wt_digital_products_d,Update,,['Update wt_offers_d'],['Insert into wt_offers_d']
+Get Data from eHub,TableInput,"SELECT
+   rd.client_id
+  ,rd.reason_id
+  ,rd.reason_type
+  ,rd.reason_desc
+FROM client_dimensions cd
+INNER JOIN reason_dimensions rd ON rd.client_id = cd.client_id
+WHERE cd.instance_flag = 'P' AND cd.client_cd ${ehubclientcodes}",['Update wt_payment_status_d'],['Insert into wt_payment_status_d']
+Insert into wt_doms_reason_d,TableOutput,,['Select columns comes from DL'],['Update wt_payment_status_d']
+Update wt_doms_reason_d,Update,,['Replace Null values'],['Select columns comes from DL']
+Convert email_address to MD5 hash value,CheckSum,,['Get Data from DL'],['Replace Null values']
+Execute SQL script,ExecSQL,"SET @email_validStream = '?';
+SET @email_authStream = '?';
+
+UPDATE wt_email_d
+	SET email_valid = IF(@email_validStream = 'N',@email_validStream,email_valid),
+	email_auth = IF(@email_authStream = 'N',@email_authStream,email_auth)
+WHERE email_address =  '?'",['Update wt_refund_reason_d'],['Insert into wt_refund_reason_d']
+Get staged data,TableInput,"SELECT DISTINCT 
+	 email_addr
+	,MIN(email_auth) AS email_auth
+    ,MIN(email_valid) AS email_valid
+    ,domain
+	,canadian_flg
+    ,0 AS deliverable_ind
+    ,email_source
+FROM 
+     emails_stg
+GROUP BY  email_addr, domain, canadian_flg",['Get Data from eHub'],['Update wt_refund_reason_d']
+Insert into wt_email_d,TableOutput,,['Get Data from DL'],['Replace Null values']
+Mail Validator,MailValidator,,['Replace Null values'],['Select columns come from DL']
+Replace Null values,IfNull,,['Select columns come from DL'],['Update wt_refund_type_d']
+Replace in string,ReplaceString,,['Update wt_refund_type_d'],['Insert Into wt_refund_type_d']
+Get staged data,TableInput,"SELECT 
+    os.client_ID,
+    os.offer_ID,
+    os.offer_CD,
+    p.product_sk,
+    os.parent_sku AS offer_parent_sku,
+    os.earnings_plan AS offer_earnings_plan,
+    os.offer_status,
+    os.offer_price,
+    c.currency_sk AS offer_currency_sk,
+    IFNULL(offer_tax_class, 'NA') AS offer_tax_class,
+    offer_bill_unit,
+    offer_bill_freq,
+    offer_max_cycles,
+    substitute_offer_ID AS offer_substitute_offer_ID,
+    renewal_offer_ID AS offer_renewal_offer_ID,
+    offer_trial_unit,
+    offer_trial_freq,
+    offer_trial_max_cycles,
+    offer_trial_amt,
+    IFNULL(os.manual_refund_rule, 'NA') AS manual_refund_rule,
+    max_refund_for_lifetime_value,
+    trans_source,
+    IFNULL(till_forbid, 'NA') AS offer_till_forbid,
+    IFNULL(cancel_rule, 'NA') AS cancel_rule,
+    pkg_set_ID AS offer_pkg_set_ID,
+    pkg_ID AS offer_pkg_ID,
+    pkg_offer_ID AS offer_pkg_offer_ID,
+    report_sku_name AS offer_report_sku_name,
+    upgrade_offer_ID AS offer_upgrade_offer_ID,
+    acctg_CD,
+    IFNULL(report_code_desc, 'NA') AS offer_report_code_desc,
+    IFNULL(offer_type, 'NA') AS offer_type,
+    os.serv_term AS offer_serv_term,
+    IFNULL(os.serv_mag_abbr, 'NA') AS offer_serv_mag_abbr,
+    IFNULL(os.serv_dockey, 'NA') AS offer_serv_dockey,
+    IFNULL(os.serv_grace, 'NA') AS offer_serv_grace,
+    serv_trial_term AS offer_serv_trial_term,
+    pkg_CD,
+    pkg_name,
+    pkg_set_CD,
+    pkg_status,
+    mo_price AS pkg_mo_price,
+    yr_price AS pkg_yr_price,
+    pkg_mo_frequency,
+    pkg_yr_frequency,
+    pkg_mo_max_cycles,
+    pkg_yr_max_cycles,
+    pkg_trial_unit,
+    pkg_trial_freq,
+    pkg_trial_max_cycles,
+    pkg_trial_amt,
+    pkg_mo_earnings_plan,
+    pkg_yr_earnings_plan,
+    mo_manual_refund_rule,
+    mo_max_refund_for_lifetime_value,
+    mo_cancel_rule,
+    pkg_yr_manual_refund_rule,
+    pkg_yr_max_refund_for_lifetime_value,
+    yr_cancel_rule,
+    mo_report_cd AS pkg_mo_report_cd,
+    mo_report_cd_desc AS pkg_mo_report_cd_desc,
+    yr_report_cd AS pkg_yr_report_cd,
+    yr_report_cd_desc AS pkg_yr_report_cd_desc,
+    mo_renewal_offer AS pkg_mo_renewal_offer,
+    yr_renewal_offer AS pkg_yr_renewal_offer,
+    pkg_set_name,
+    pkg_set_status,
+    pkg_set_mo_frequency,
+    pkg_set_yr_frequency,
+    pkg_set_mo_max_cycles,
+    pkg_set_yr_max_cycles,
+    pkg_set_trial_unit,
+    pkg_set_trial_freq,
+    pkg_set_trial_max_cycles,
+    pkg_set_trial_amt,
+    pkg_set_mo_earnings_plan,
+    pkg_set_yr_earnings_plan,
+    pkg_set_yr_manual_refund_rule,
+    pkg_set_yr_max_refund_for_lifetime_value,
+    pkg_offer_CD,
+    pkg_offer_name,
+    pkg_offer_status,
+    pkg_offer_price,
+    pkg_offer_bill_unit,
+    pkg_offer_bill_freq,
+    pkg_offer_max_cycles,
+    pkg_offer_trial_unit,
+    pkg_offer_trial_freq,
+    pkg_offer_trial_max_cycles,
+    pkg_offer_trial_amt,
+    pkg_offer_earnings_plan,
+    pkg_renewal_offer AS pkg_offer_pkg_renewal_offer,
+    report_CD,
+    report_cd_desc,
+    number_of_products,
+    time_based_products,
+    serv_products,
+    servpf_products
+FROM
+    offers_stg os
+        JOIN
+    ${database}.wt_currency_d c ON os.offer_currency = c.currency_cd AND UPPER(c.source_system_cd) = 'EHUB'
+        JOIN
+    ${database}.wt_digital_products_d p ON os.client_id = p.client_ID
+        AND os.parent_sku = p.parent_sku
+",['Update wt_tracking_codes_d'],['Insert into wt_tracking_codes_d']
+Insert into wt_offers_d,TableOutput,,['Get Data from eHub'],['Update wt_tracking_codes_d']
+Update wt_offers_d,Update,,['Get Data from ehub'],['Staged components_stg']
+Get Data from DL,TableInput,"SELECT
+   UPPER(TRIM(source_system_cd)) AS source_system_cd
+  ,TRIM(table_name) AS table_name
+  ,TRIM(system_field_name) AS system_field_name
+  ,IF(system_cd=' ', system_cd, TRIM(system_cd)) AS system_cd
+  ,TRIM(system_name) AS system_name
+  ,TRIM(system_desc) AS system_desc
+  ,TRIM(modified_by) AS modified_by
+  ,TRIM(modified_dt) AS modified_dt
+FROM lt_payment_status",['Get Data from eHub'],['Staged digital_gift_certificate_stg']
+Insert into wt_payment_status_d,TableOutput,,['Get Data from ehub'],['Staged digital_products_stg']
+Replace Null values,IfNull,,['Get Data from ehub'],['Staged email_stg']
+Select columns comes from DL,SelectValues,,['Get Data from ehub'],['Staged offers_stg']
+Update wt_payment_status_d,Update,,['Get the data from source'],['Select columns from source']
+Get Data from eHub,TableInput,"SELECT
+   'EHUB' AS source_system_cd
+  ,'doms_staging.customer_refunds' AS table_name
+  ,'refund_reason_CD' AS system_field_name
+  ,CONCAT(TRIM(cast(rd.client_id as char(10))),':',trim(cast(rd.reason_id as char(10)))) AS refund_reason_cd
+  ,IFNULL(TRIM(rd.reason_type),'NA') AS refund_reason_name
+  ,IFNULL(TRIM(rd.reason_desc),'NA') AS refund_reason_desc
+  ,'EHUB' AS modified_by
+FROM client_dimensions cd
+INNER JOIN reason_dimensions rd on rd.client_id = cd.client_id
+WHERE cd.instance_flag = 'P' and rd.reason_type in ('Customerbalancerefund') AND cd.client_cd ${ehubclientcodes}",['Select columns from source'],['create_ehub_subscriptions_extract_file']
+Insert into wt_refund_reason_d,TableOutput,,['Get fact filenames'],['Write to log']
+Update wt_refund_reason_d,Update,,['Write to log'],['Copy rows to result']
+Get Data from DL,TableInput,"SELECT
+  UPPER(TRIM(source_system_cd)) AS source_system_cd
+, TRIM(table_name) AS table_name
+, TRIM(system_field_name) AS system_field_name
+, IF(system_cd=' ',system_cd,TRIM(system_cd)) AS system_cd
+, TRIM(system_name) AS system_name
+, TRIM(system_desc) AS system_desc
+, TRIM(modified_by) AS modified_by
+, TRIM(modified_dt) AS modified_dt
+FROM lt_refund_type
+WHERE LENGTH(source_system_cd) > 0  -- this condition has temporarily been added because source contains bad data.",['Select last update date for given table'],['Select values']
+Insert Into wt_refund_type_d,TableOutput,,['Select values'],['Set update date parameter']
+Replace Null values,IfNull,,['Get stage filenames'],['Write to log']
+Select columns come from DL,SelectValues,,['Write to log'],['Copy rows to result']
+Update wt_refund_type_d,Update,,['Get rows from result'],['Write to log']
+Get Data from eHub,TableInput,"SELECT 
+	tc.client_ID
+   ,tc.tracking_code_ID
+   ,IFNULL(TRIM(tc.tracking_code_CD), 'NA') AS tracking_code_CD
+   ,IFNULL(TRIM(tc.tracking_code_desc),'NA') AS tracking_code_desc
+   ,IFNULL(TRIM(tc.tracking_code_status), 'NA') AS tracking_code_status
+   ,IFNULL(TRIM(tc.trans_source), 'NA') AS trans_source
+   ,tc.create_date AS tracking_code_dt 
+FROM client_dimensions cd  INNER JOIN ${eHub_database}_staging.tracking_codes tc ON tc.client_ID = cd.client_id
+WHERE cd.instance_flag='P' AND cd.client_CD ${ehubclientcodes}",['Write to log'],['Set Variables']
+Insert into wt_tracking_codes_d,TableOutput,,['Get data from customer_balance_refunds_stg'],['Filter rows']
+Update wt_tracking_codes_d,Update,,['Filter rows'],['Load staged customer_balance_refunds_stg hold table']
+Get Data from ehub,TableInput,"SELECT 
+	 cp.client_ID
+	,cp.pkg_ID
+	,cp.pkg_set_ID
+	,cp.product_ID
+	,cp.parent_sku
+	,cp.pkg_comp_pct
+	,cp.acctg_CD
+	,cd.update_date
+FROM client_dimensions cd
+INNER JOIN  ${eHub_database}_staging.components_dimensions cp ON cp.client_ID = cd.client_id
+WHERE cd.instance_flag = 'P' AND cd.client_cd  ${ehubclientcodes}
+AND cd.update_date > '${update_date}'
+		",['Filter rows'],['Select values']
+Staged components_stg,TableOutput,,['Select values'],['create customer_balance_refunds fact load file']
+Get Data from eHub,TableInput,"SELECT 
+	 ed.client_ID
+	,ed.etificate_ID
+	,ed.etificate_sku
+	,ed.etificate_sku_desc
+	,ed.etificate_status
+	,ed.product_type
+	,ed.etificate_vendor
+	,ed.min_etificate_price
+	,ed.max_etificate_price
+	,ed.etificate_currency
+	,ed.etificate_tax_class
+	,IF(LENGTH(COALESCE(TRIM(ed.etificate_category),'')) = 0 OR TRIM(ed.etificate_category) = 'NULL','NA',etificate_category) AS etificate_category
+	,ed.trans_source
+	,IFNULL(ed.update_date,ed.create_date) AS update_date
+FROM client_dimensions cd
+INNER JOIN  ${eHub_database}_staging.etificates_dimensions ed ON ed.client_ID = cd.client_id
+WHERE cd.instance_flag = 'P' AND cd.client_cd  ${ehubclientcodes}
+AND IFNULL(ed.update_date,ed.create_date) > '${update_date}'",['Get data from doms'],['Text file output']
+Staged digital_gift_certificate_stg,TableOutput,,['Filter rows'],['Load staged extensions hold table']
+Get Data from ehub,TableInput,"SELECT 
+	 pr.client_ID
+	,cd.client_cd
+	,pr.product_ID
+	,pr.parent_sku
+	,pr.parent_sku_desc
+	,pr.product_status
+	,pr.product_type
+	,pr.earnings_plan
+	,pr.product_price
+	,pr.product_currency
+	,pr.product_tax_class
+	,pr.billing_period_unit
+	,pr.billing_frequency
+	,pr.billing_max_cycles
+	,pr.trans_src
+	,pr.manual_refund_rule
+	,pr.maximum_refund_for_lifetime_value
+	,IF(LENGTH(COALESCE(TRIM(cancellation_rule),''))=0,'NA',cancellation_rule) AS cancellation_rule
+	,pr.serv_term
+	,pr.serv_mag_abbr
+	,pr.serv_dockey
+	,pr.serv_product_url
+	,IFNULL(pr.update_date,pr.create_date) AS update_date
+FROM client_dimensions cd
+INNER JOIN  ${eHub_database}_staging.products pr ON pr.client_ID = cd.client_id
+WHERE cd.instance_flag = 'P' AND cd.client_cd  ${ehubclientcodes}
+AND IFNULL(pr.update_date,pr.create_date) >  '${update_date}'
+		",['Get data from digital_extensions_stg'],['Filter rows']
+Staged digital_products_stg,TableOutput,,['Filter rows'],['Select Values']
+Get Data from ehub,TableInput,"SELECT 
+    email_addr
+    ,email_opt_ind
+    ,email_valid_ind
+    ,SUBSTRING_INDEX(email_addr, '@', -1) AS domain
+    ,(CASE
+        WHEN
+            SUBSTR(SUBSTRING_INDEX(email_addr, '@', -1),
+                - 2) = 'ca'
+        THEN
+            'Y'
+        ELSE 'N'
+     END) canadian_flg
+    ,(CASE
+        WHEN email_valid_ind = 1 THEN 'Y'
+        ELSE 'N'
+     END) AS email_valid
+    ,(CASE
+        WHEN email_opt_ind = 1 THEN 'Y'
+        ELSE 'N'
+     END) AS email_auth
+    ,'CDS' AS email_source
+    ,e.update_date
+FROM
+    emails e
+    INNER JOIN
+    ${eHub_database}_data.client_dimensions cd ON e.client_id = cd.client_id 
+
+WHERE cd.instance_flag = 'P' AND cd.client_cd ${ehubclientcodes} AND e.update_date > '${update_date}'",['Select Values'],['create digital_extensions fact load file']
+Staged email_stg,TableOutput,,['Get data from eHub'],['Text file output']
+Get Data from ehub,TableInput,"SELECT 
+    o.client_ID
+    ,o.offer_ID
+    ,o.offer_CD
+    ,o.parent_sku
+    ,o.earnings_plan
+    ,o.offer_status
+    ,o.offer_price
+    ,o.offer_currency
+    ,o.offer_tax_class
+    ,o.offer_bill_unit
+    ,o.offer_bill_freq
+    ,o.offer_max_cycles
+    ,o.substitute_offer_ID
+    ,o.renewal_offer_ID
+    ,o.offer_trial_unit
+    ,o.offer_trial_freq
+    ,o.offer_trial_max_cycles
+    ,o.offer_trial_amt
+    ,IFNULL(o.manual_refund_rule,po.manual_refund_rule) AS manual_refund_rule
+    ,IFNULL(o.max_refund_for_lifetime_value,po.max_refund_for_lifetime_value) AS max_refund_for_lifetime_value
+	,IFNULL(IFNULL(IFNULL(o.trans_source, p.trans_source),ps.trans_source),po.trans_source) AS trans_source
+    ,o.till_forbid
+    ,IFNULL(o.cancel_rule, po.cancel_rule) AS cancel_rule
+    ,o.pkg_set_ID
+    ,o.pkg_ID
+    ,o.pkg_offer_ID
+    ,o.report_sku_name
+    ,o.upgrade_offer_ID
+    ,IFNULL(o.acctg_CD, po.acctg_CD) AS acctg_CD
+    ,o.report_code_desc
+    ,o.offer_type
+    ,o.serv_term
+    ,o.serv_mag_abbr
+    ,o.serv_dockey
+    ,o.serv_grace
+    ,o.serv_trial_term
+    ,p.pkg_CD
+    ,p.pkg_name
+    ,IFNULL(p.pkg_set_CD, ps.pkg_set_CD) AS pkg_set_CD
+    ,p.pkg_status
+    ,p.mo_price
+    ,p.yr_price
+    ,p.mo_frequency AS pkg_mo_frequency
+    ,p.yr_frequency AS pkg_yr_frequency
+    ,p.pkg_mo_max_cycles
+    ,p.pkg_yr_max_cycles
+    ,p.pkg_trial_unit
+    ,p.pkg_trial_freq
+    ,p.pkg_trial_max_cycles
+    ,p.pkg_trial_amt
+    ,p.pkg_mo_earnings_plan
+    ,p.pkg_yr_earnings_plan
+    ,IFNULL(p.mo_manual_refund_rule,ps.mo_manual_refund_rule) AS mo_manual_refund_rule
+    ,IFNULL(p.mo_max_refund_for_lifetime_value,ps.mo_max_refund_for_lifetime_value) AS mo_max_refund_for_lifetime_value
+    ,IFNULL(p.mo_cancel_rule, ps.mo_cancel_rule) AS mo_cancel_rule
+    ,p.yr_manual_refund_rule AS pkg_yr_manual_refund_rule
+    ,p.yr_max_refund_for_lifetime_value AS pkg_yr_max_refund_for_lifetime_value
+    ,IFNULL(p.yr_cancel_rule, ps.yr_cancel_rule) AS yr_cancel_rule
+    ,p.mo_report_cd
+    ,p.mo_report_cd_desc
+    ,p.yr_report_cd
+    ,p.yr_report_cd_desc
+    ,p.mo_renewal_offer
+    ,p.yr_renewal_offer
+    ,ps.pkg_set_name
+    ,ps.pkg_set_status
+    ,ps.mo_frequency AS pkg_set_mo_frequency
+    ,ps.yr_frequency AS pkg_set_yr_frequency
+    ,ps.pkg_set_mo_max_cycles
+    ,ps.pkg_set_yr_max_cycles
+    ,ps.pkg_set_trial_unit
+    ,ps.pkg_set_trial_freq
+    ,ps.pkg_set_trial_max_cycles
+    ,ps.pkg_set_trial_amt
+    ,ps.pkg_set_mo_earnings_plan
+    ,ps.pkg_set_yr_earnings_plan
+    ,ps.yr_manual_refund_rule AS pkg_set_yr_manual_refund_rule
+    ,ps.yr_max_refund_for_lifetime_value AS pkg_set_yr_max_refund_for_lifetime_value
+    ,po.pkg_offer_CD
+    ,po.pkg_offer_name
+    ,po.pkg_offer_status
+    ,po.pkg_offer_price
+    ,po.pkg_offer_bill_unit
+    ,po.pkg_offer_bill_freq
+    ,po.pkg_offer_max_cycles
+    ,po.pkg_offer_trial_unit
+    ,po.pkg_offer_trial_freq
+    ,po.pkg_offer_trial_max_cycles
+    ,po.pkg_offer_trial_amt
+    ,po.pkg_offer_earnings_plan
+    ,po.pkg_renewal_offer
+    ,rc.report_CD
+    ,IFNULL(rc.report_cd_desc, po.report_cd_desc) AS report_cd_desc
+    ,rc.number_of_products
+    ,rc.time_based_products
+    ,rc.serv_products
+    ,rc.servpf_products
+    ,IFNULL(o.update_date,o.create_date) AS update_date
+FROM
+    client_dimensions cd
+        JOIN
+    ${eHub_database}_staging.offers o ON o.client_id = cd.client_id
+        LEFT JOIN
+    ${eHub_database}_staging.packages p ON o.client_id = p.client_id
+        AND o.pkg_id = p.pkg_id
+        LEFT JOIN
+    ${eHub_database}_staging.package_offers po ON o.client_id = po.client_id
+        AND o.pkg_offer_id = po.pkg_Offer_id
+        LEFT JOIN
+    ${eHub_database}_staging.package_sets ps ON o.client_id = ps.client_id
+        AND o.pkg_set_id = ps.pkg_set_id
+        LEFT JOIN
+    report_codes rc ON o.client_id = rc.client_id
+        AND o.acctg_cd = rc.report_cd
+WHERE  cd.instance_flag = 'P'
+AND cd.client_cd  ${ehubclientcodes}
+AND IFNULL(o.update_date,o.create_date) > '${update_date}'",['Get data from ehub'],['Text file output']
+Staged offers_stg,TableOutput,,['get_data_from_orders_stg'],['Filter rows']
+Get the data from source,TableInput,"SELECT 
+    emal.email_addr,
+    subs.customer_id,
+    subs.current_order_ID,
+    subs.subscription_id,
+    subs.subscription_type,
+    subs.serv_mag_abbr,
+    subs.serv_dockey,
+    subs.serv_acct_nbr,
+    subs.serv_order_nbr,
+    subs.billing_amt,
+    offr.parent_sku,
+    ordr.tracking_CD,
+    subs.create_date AS original_create_dt,
+    subs.start_date,
+    subs.end_date AS expire_date,
+    CASE
+        WHEN subs.subscription_status = 'Cancelled' THEN subs.cancel_date
+        WHEN subs.subscription_status = 'Amended' THEN subs.amendment_date
+        WHEN subs.subscription_status = 'Stop Charge-Cancelled' THEN subs.end_date
+        WHEN subs.subscription_status = 'Expired' THEN subs.end_date
+        ELSE NULL
+    END AS service_ended_dt,
+    subs.used_cycles,
+    subs.subscription_status,
+    CASE
+        WHEN offr.pkg_offer_ID = '' THEN subs.offer_code
+        ELSE poff.pkg_offer_CD
+    END AS offer_CD,
+    poff.pkg_offer_name,
+	pack.pkg_name,
+    pack.pkg_desc
+FROM
+    subscriptions subs
+        INNER JOIN
+    ${ehub_database}3a.offers offr ON subs.client_ID = offr.client_ID
+        AND subs.offer_code = offr.offer_CD
+        LEFT JOIN
+    package_offers poff ON offr.client_ID = poff.client_ID
+        AND offr.pkg_offer_ID = poff.pkg_offer_ID
+		LEFT JOIN
+	packages pack ON offr.client_ID = pack.client_ID
+		AND offr.pkg_ID = pack.pkg_ID 
+        INNER JOIN
+    ${ehub_database}3a.orders ordr ON subs.client_ID = ordr.client_ID
+        AND subs.current_order_ID = ordr.order_ID
+        LEFT JOIN
+    ${ehub_database}3a.emails emal ON subs.client_ID = emal.client_ID
+        AND subs.customer_ID = emal.customer_ID
+WHERE
+    subs.client_id = 10019 
+ORDER BY customer_id , subscription_id;",['Filter rows'],['load_order_hold_stg_data']
+Select columns from source,SelectValues,,['Filter rows'],['create_digital_order_fact_load_file']
+create_ehub_subscriptions_extract_file,TextFileOutput,,['Filter rows'],['Load staged digital_payments hold table']
+Copy rows to result,RowsToResult,,['Get data from digital_payments_stg'],['Filter rows']
+Get fact filenames,GetFileNames,,['Filter rows'],['create digital_payments fact load file']
+Write to log,WriteToLog,,['Get data from doms'],['Text file output']
+Select last update date for given table,TableInput,SELECT updatedate FROM source_last_send WHERE source = '${table_name}',['Get Data From digital_refunds_stg'],['Filter rows']
+Select values,SelectValues,,['Filter rows'],['Load staged digital_refunds_stg hold table']
+Set update date parameter,SetVariable,,['Filter rows'],['Select values']
+Copy rows to result,RowsToResult,,['Select values'],['If field value is null']
+Get stage filenames,GetFileNames,,['If field value is null'],['create digital_refunds fact load file']
+Write to log,WriteToLog,,['Get Data From Doms'],['If field value is null']
+Get rows from result,RowsFromResult,,['If field value is null'],['Text file output']
+Set Variables,SetVariable,,['Get data from digital_subscriptions_stg'],['Filter rows']
+Write to log,WriteToLog,,['Filter rows'],['Load staged digital_subscriptions hold table']
+Filter rows,FilterRows,,['Filter rows'],['create digital_subscriptions fact load file']
+Get data from customer_balance_refunds_stg,TableInput,"SELECT 
+     cbr.client_ID
+	,cbr.client_cd
+	,cbr.cust_surplus_bal_ID
+	,IFNULL(id.individual_sk,-1) AS individual_sk
+	,cbr.customer_ID 
+	,cbr.surplus_amt
+	,cbr.customer_balance_trans_src
+	,cbr.log_ID
+	,cbr.payment_presenter
+	,cbr.presenter_request_ID
+	,cbr.manual_refund_ind
+	,IFNULL(rs.refund_status_sk,-1) AS refund_status_sk
+	,cbr.refund_status
+	,cbr.refund_type
+    ,IFNULL(rt.refund_type_sk,-1) AS refund_type_sk
+	,IFNULL(ct.card_type_sk,-1) AS card_type_sk
+	,cbr.card_type
+	,cbr.refund_amt
+	,cbr.refund_currency
+	,IFNULL (c.currency_sk,-1) AS refund_currency_sk
+	,refund_capture_date
+	,refund_capture_utc_date
+	,IFNULL(cr.cancel_reason_sk,-1) AS reason_sk
+	,cbr.refund_reason_CD
+	,cbr.customer_refund_trans_src
+	,create_date
+	,cbr.update_date	
+FROM customer_balance_refunds_stg cbr
+LEFT OUTER JOIN source_xref_stg sx ON sx.publisher_code = cbr.client_cd AND sx.system_id = cbr.customer_id  AND UPPER(sx.system_code) = 'EHUB'
+LEFT OUTER JOIN ${database}.wt_individual_d id ON id.universal_id = sx.universal_id AND id.curr_rec_ind = 1
+LEFT OUTER JOIN ${database}.wt_currency_d c ON c.currency_cd = cbr.refund_currency AND UPPER(c.source_system_cd) = 'EHUB'
+LEFT OUTER JOIN ${database}.wt_cancel_reason_d cr ON SUBSTRING_INDEX(cr.cancel_reason_cd,':',-1)= cbr.refund_reason_CD
+AND SUBSTRING_INDEX(cr.cancel_reason_cd,':',1) = cbr.client_ID AND UPPER(cr.source_system_cd) = 'EHUB' 
+LEFT OUTER JOIN ${database}.wt_refund_status_d rs ON rs.refund_status_cd = cbr.refund_status AND UPPER(rs.source_system_cd) = 'EHUB'
+LEFT OUTER JOIN ${database}.wt_card_type_d ct ON ct.card_type_cd  = cbr.card_type AND UPPER(ct.source_system_cd) = 'EHUB'
+LEFT OUTER JOIN ${database}.wt_refund_type_d rt ON rt.refund_type_cd  = cbr.refund_type
+",['Get data from doms'],['Text file output']

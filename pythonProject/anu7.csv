@@ -1,0 +1,15 @@
+name,type,sql,from,to
+
+GENERIC,TableInput,TextFileOutput,String,String,String,String,String,String,String,String
+"SELECT
+   TRIM(source_system_cd) AS source_system_cd
+  TRIM(table_name) AS table_name
+  TRIM(system_field_name) AS system_field_name
+  IF(system_cd=' ' system_cd TRIM(system_cd)) AS system_cd
+  TRIM(system_name) AS system_name
+  TRIM(system_desc) AS system_desc
+  TRIM(modified_by) AS modified_by
+  TRIM(modified_dt) AS modified_dt
+FROM hrst_data.lt_actual_ship_method"
+Get Data from lt_actual_ship_method
+Text file output

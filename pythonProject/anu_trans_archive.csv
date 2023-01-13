@@ -1,0 +1,11 @@
+name,type,sql,from,to
+Get archive_process_info,TableInput,"SELECT 
+	process_name,
+	is_directory,
+	is_rolling,
+	rolling_days,
+	pentaho_path as source_path,
+	s3_path AS target_path
+FROM archive_process_info",['Get archive_process_info'],['Switch / Case']
+archive_process_shell_execution_job,JobExecutor,,['Switch / Case'],['archive_process_shell_execution_job']
+rolling_process_shell_execution_job,JobExecutor,,['Switch / Case'],['rolling_process_shell_execution_job']

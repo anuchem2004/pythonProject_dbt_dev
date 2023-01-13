@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Airflow_dbt/airflow_ubun_psql/dbt-orchestration" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pentaho_xml_parser" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pythonProject_dbt_dev" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pythonProject_dbt_dev/dbt2_airflow_poc" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pythonProject_dbt_dev/pythonProject_dbt_dev" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/redshift_demo" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/spark_mign_framework" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/xml_parser" vcs="Git" />
+  </component>
+</project>

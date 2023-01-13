@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>test_DimShippingMethod_Transform</name>
+  
+
+  
+  <order>
+    <hop>
+      <from>Get Data from lt_actual_ship_method</from>
+      <to>Text file output</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <step>
+    <name>Get Data from lt_actual_ship_method</name>
+    <type>TableInput</type>
+   
+    
+    <sql>SELECT&#xd;&#xa;   TRIM&#x28;source_system_cd&#x29; AS source_system_cd&#xd;&#xa;  ,TRIM&#x28;table_name&#x29; AS table_name&#xd;&#xa;  ,TRIM&#x28;system_field_name&#x29; AS system_field_name&#xd;&#xa;  ,IF&#x28;system_cd&#x3d;&#x27; &#x27;, system_cd, TRIM&#x28;system_cd&#x29;&#x29; AS system_cd&#xd;&#xa;  ,TRIM&#x28;system_name&#x29; AS system_name&#xd;&#xa;  ,TRIM&#x28;system_desc&#x29; AS system_desc&#xd;&#xa;  ,TRIM&#x28;modified_by&#x29; AS modified_by&#xd;&#xa;  ,TRIM&#x28;modified_dt&#x29; AS modified_dt&#xd;&#xa;FROM hrst_data.lt_actual_ship_method</sql>
+    
+ 
+    </step>
+
+  <step>
+    <name>Text file output</name>
+    <type>TextFileOutput</type>
+    <description/>
+ 
+    <file>
+      <name>&#x24;&#x7b;mdb.output.path&#x7d;&#x2f;hrst_test_stage</name>
+     
+    </file>
+  
+    
+</transformation>

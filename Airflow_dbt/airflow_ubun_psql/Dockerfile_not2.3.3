@@ -1,0 +1,57 @@
+FROM ubuntu:20.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y tzdata
+RUN apt-get install python3-pip sudo -y
+RUN apt-get install gnupg2 vim  -y
+RUN apt-get install postgresql postgresql-contrib -y
+RUN apt-get install -y rabbitmq-server
+RUN  adduser airflow
+CMD echo "airflow"
+CMD echo "airflow"
+CMD echo " "
+CMD echo " "
+CMD echo " "
+CMD echo " "
+CMD echo " "  
+CMD echo "y"
+RUN usermod -aG sudo airflow
+RUN echo "host all  all    0.0.0.0/0  md5" >>/etc/postgresql/12/main/pg_hba.conf
+RUN echo "listen_addresses= '*'" >> /etc/postgresql/12/main/postgresql.conf
+RUN pip3 install  apache-airflow[postgres,mssql,celery,rabbitmq]==2.2.2
+RUN pip3 install virtualenv
+RUN pip3 install markupsafe==1.1.1 flask==1.1.4 click==8.0.0  jinja2==2.10.1 
+RUN pip3 install dbt-core dbt-redshift
+RUN pip3 install Faker psycopg2_binary Werkzeug flask_cors supervisor
+RUN mkdir /tmp/dbt-orchestration
+COPY dbt-orchestration /tmp/dbt-orchestration/
+RUN mkdir -p /root/airflow/dags
+RUN ln -s  /usr/local/lib/python3.10/dist-packages/airflow/example_dags/* /root/airflow/dags/
+COPY data-generator.py /root/airflow/dags/ 
+COPY supervisord.conf  /etc/supervisord.conf
+COPY rabbitmq.ini /etc/supervisord.d/rabbitmq.ini
+COPY rabbitmqadmin.py /usr/bin/rabbitmqadmin.py
+COPY airflow.ini /etc/supervisord.d/airflow.ini
+RUN mkdir -p /root/airflow/dags
+RUN mkdir -p /root/airflow/logs
+RUN mkdir -p /root/airflow/plugins
+RUN chmod 777 /bin/rabbitmqadmin.py
+RUN mkdir -p /var/run/supervisor
+RUN mkdir -p /var/log/supervisor
+RUN chown -R airflow.airflow /root/airflow/
+RUN pip3 install apache-airflow['cncf.kubernetes']
+ENV AIRFLOW_HOME=/root/airflow
+ENV AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+ENV AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@localhost:5432/airflow
+ENV AIRFLOW__CELERY__BROKER_URL=amqp://airflow:airflow@rabbitmq:5672/airflow/
+ENV AIRFLOW__CELERY__RESULT_BACKEND = db+postgresql://airflow:airflow@localhost:5432/airflow
+ENV AIRFLOW_VAR_DATABASE=dev
+ENV AIRFLOW_VAR_HOSTNAME=redshift-producer.cnnwpebe6bwf.us-west-2.redshift.amazonaws.com
+ENV AIRFLOW_VAR_PORT_ID=5439
+ENV AIRFLOW_VAR_PWD=Password_01
+ENV AIRFLOW_VAR_USERNAME=admin
+ENV AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME=604800
+COPY entrypoint.sh /bin/entrypoint
+RUN chmod 777 /bin/entrypoint
+CMD "/bin/entrypoint"
+

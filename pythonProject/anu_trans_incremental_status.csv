@@ -1,0 +1,8 @@
+name,type,sql,from,to
+check_incremental_status,TableInput,"SELECT count(1) AS current_attempt FROM incremental_status where status in ('0','1') ;",['check_incremental_status'],['Select values']
+Select values,SelectValues,,['Select values'],['Set current_attempt parameter']
+Set current_attempt parameter,SetVariable,,['Create HTML result'],['Group by']
+Create HTML result,TextFileInput,,['Group by'],['Set HTML Variables']
+Group by,GroupBy,,['Set date and sub Variables'],['Create HTML result']
+Set HTML Variables,SetVariable,,['select date of incremental load '],['Set date and sub Variables']
+Set date and sub Variables,SetVariable,,['SELECT Job_Name and status'],['XML Output']

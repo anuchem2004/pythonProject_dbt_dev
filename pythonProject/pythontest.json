@@ -1,0 +1,16 @@
+{
+  "job": {
+    "name": "hrst_master_automation_job",
+    "description": null,
+    "extended_description": null
+  },
+  "order": {
+    "hop": [
+      {
+        "from": "Get Archive File Names",
+        "to": "Select values 2",
+        "enabled": "Y"
+      }
+    ]
+  }
+}

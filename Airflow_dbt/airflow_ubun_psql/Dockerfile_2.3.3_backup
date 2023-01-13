@@ -1,0 +1,72 @@
+FROM ubuntu:20.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG AIRFLOW_VERSION=2.3.3
+
+RUN apt-get update && apt-get install -y tzdata
+RUN apt-get install python3 python3-pip sudo -y
+RUN apt-get install gnupg2 vim  -y
+RUN apt-get install postgresql postgresql-contrib -y
+RUN apt-get install -y rabbitmq-server
+RUN    apt-get update\
+    && apt-get -y install gcc libffi-dev zlib1g-dev zip unzip telnet dnsutils net-tools vim nano wget curl \
+    && apt-get -y install make libssl-dev
+RUN useradd -c 'airflow' -m -s /bin/bash   airflow
+
+RUN echo "airflow:airflow"|chpasswd
+#RUN usermod -aG sudo airflow
+RUN echo "host all  all    0.0.0.0/0  md5" >>/etc/postgresql/12/main/pg_hba.conf
+RUN echo "listen_addresses= '*'" >> /etc/postgresql/12/main/postgresql.conf
+#RUN pip3 install  apache-airflow[postgres,celery,rabbitmq]==2.3.3
+RUN pip3 install virtualenv
+RUN pip3 install markupsafe==1.1.1 flask==1.1.4 click==8.0.0  jinja2==2.10.1 
+RUN pip3 install dbt-core dbt-redshift
+RUN pip3 install Faker psycopg2_binary Werkzeug flask_cors supervisor
+RUN mkdir /tmp/dbt-orchestration
+COPY dbt-orchestration /tmp/dbt-orchestration/
+COPY supervisord.conf  /etc/supervisord.conf
+COPY rabbitmq.ini /etc/supervisord.d/rabbitmq.ini
+COPY rabbitmqadmin.py /usr/bin/rabbitmqadmin.py
+COPY airflow.ini /etc/supervisord.d/airflow.ini
+RUN chmod 777 /bin/rabbitmqadmin.py
+RUN mkdir -p /var/run/supervisor
+RUN mkdir -p /var/log/supervisor
+
+RUN python3 -m pip install -U pip setuptools wheel \
+    && pip uninstall  -y chardet\
+    && pip install Cython \
+    && pip install pika\
+    && pip install psycopg2-binary\
+    && pip install pytz  \
+    && pip install  urllib3 pyOpenSSL --force --upgrade \
+    && pip install ndg-httpsclient \
+    && pip install pyasn1 \
+    && pip install supervisor \
+    && pip install werkzeug==0.15.0
+RUN  apt-get install -y g++  libsasl2-dev
+
+RUN pip3 install apache-airflow[s3,crypto,celery,postgres,hive,jdbc,snowflake,databricks]==${AIRFLOW_VERSION}
+RUN apt-get install mlocate -y
+
+RUN sed -i -e '/sql_alchemy_conn =/ s/= .*/= postgresql+psycopg2:\/\/airflow:airflow@localhost:5432\/airflow/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/executor =/ s/= .*/= CeleryExecutor/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/broker_url =/ s/= .*/= amqp:\/\/airflow:airflow@rabbitmq:5672\/airflow/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/result_backend =/ s/= .*/= db+postgresql:\/\/airflow:airflow@localhost\/airflow/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/load_examples =/ s/= .*/= False/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/dags_folder =/ s/= .*/= \/dags\/airflow\/dags/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/dag_dir_list_interval =/ s/= .*/= 60/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg \
+    && sed -i -e '/fernet_key =/ s/= .*/= __xYFdYeIdgohydkqLiZgXUDkZ1xfPPHikNTDhpPX8I=/' /usr/local/lib/python3.8/dist-packages/airflow/config_templates/default_airflow.cfg
+
+RUN mkdir -p /home/airflow/dags
+RUN mkdir -p /home/airflow/logs
+RUN mkdir -p /home/airflow/plugins
+COPY data-generator.py /home/airflow/dags/
+#COPY chmod 777 /home/airflow/dags/data-generator.py
+RUN chown -R airflow.airflow /home/airflow/
+RUN echo "airflow    ALL=(ALL:ALL)       NOPASSWD: ALL" >> /etc/sudoers
+
+RUN usermod -aG sudo airflow
+
+COPY entrypoint.sh /bin/entrypoint
+RUN chmod 777 /bin/entrypoint
+CMD "/bin/entrypoint"

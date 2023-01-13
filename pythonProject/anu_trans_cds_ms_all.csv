@@ -1,0 +1,43 @@
+name,type,sql,from,to
+Get CDPH data from Hold table,TableInput,"SELECT 
+individual_sk
+,magazine_abbr
+,promotion_dt
+,campaign_id
+,postal_cd
+,document_key
+,publisher_cd
+FROM lt_cds_ms_cold_donor_promotion_hist_hold_stg;
+",['Get CDPH data from Hold table'],['Text file output']
+Text file output,TextFileOutput,,['Select values'],['Filter Rows']
+Filter Rows,FilterRows,,['Filter Rows'],['Text file output']
+Get the publisher_cd ,ScriptValueMod,,['Get the publisher_cd '],['Select values']
+Read data from cdph file,TextFileInput,,['Read data from cdph file'],['Get the publisher_cd ']
+Select values,SelectValues,,['Get fact filenames'],['Write to log']
+Text file output,TextFileOutput,,['Write to log'],['Copy rows to result']
+Copy rows to result,RowsToResult,,['Get filenames'],['Write to log']
+Get fact filenames,GetFileNames,,['Write to log'],['Copy rows to result']
+Write to log,WriteToLog,,['Get hold filenames'],['Write to log']
+Copy rows to result,RowsToResult,,['Write to log'],['Copy rows to result']
+Get filenames,GetFileNames,,['Select last update date for given table'],['Select values']
+Write to log,WriteToLog,,['Select values'],['Set update date parameter']
+Copy rows to result,RowsToResult,,['Get source filenames'],['Write to log']
+Get hold filenames,GetFileNames,,['Write to log'],['Copy rows to result']
+Write to log,WriteToLog,,['Get stage filenames'],['Write to log']
+Select last update date for given table,TableInput,SELECT updatedate FROM source_last_send WHERE source = '${table_name}',['Write to log'],['Copy rows to result']
+Select values,SelectValues,,['Modified Java Script Value'],['Process files']
+Set update date parameter,SetVariable,,['Get File Names'],['Modified Java Script Value']
+Copy rows to result,RowsToResult,,['Modified Java Script Value'],['Process files']
+Get source filenames,GetFileNames,,['Get File Names'],['Modified Java Script Value']
+Write to log,WriteToLog,,['Get rows from result'],['Write to log']
+Copy rows to result,RowsToResult,,['Write to log'],['Set Variables']
+Get stage filenames,GetFileNames,,['Get rows from result'],['Write to log']
+Write to log,WriteToLog,,['Write to log'],['Replace in string']
+Get File Names,GetFileNames,,['Replace in string'],['Set Variables']
+Modified Java Script Value,ScriptValueMod,,['Get rows from result'],['Write to log']
+Process files,ProcessFiles,,['Write to log'],['Set Variables']
+Get File Names,GetFileNames,,['Get Data from MDB'],['create dm_promotion_hist_hold file']
+Modified Java Script Value,ScriptValueMod,,['Read data from mbs file'],['Get Variables']
+Process files,ProcessFiles,,['Get Variables'],['Select and rename columns']
+Get rows from result,RowsFromResult,,['Select and rename columns'],['Filter Rows']
+Set Variables,SetVariable,,['Filter Rows'],['create cds_ms_ dm_promotion_hist_stage file']

@@ -1,0 +1,53 @@
+name,type,sql,from,to
+Text file output,TextFileOutput,,['select form source_xref'],['Text file output']
+select form source_xref,TableInput,"SELECT
+  cast(sx.universal_id as integer) + 2 as universal_id
+, sx.system_code
+, sx.publisher_code
+, sx.system_id
+, sx.omniview_individual_id
+, sx.data_services_link
+, cast(sx.household_id as integer) + 2 as household_id
+, cast(sx.address_id as integer) + 2 as address_id
+, sx.update_date
+
+FROM hrst_data.source_xref sx
+  INNER JOIN hrst_data.company_source_xref csx on sx.publisher_code = csx.publisher_code
+	AND  sx.system_code=csx.system_code
+WHERE csx.company_id = 2 AND sx.publisher_code = 'KF'",['Table input'],['Table output']
+Table input,TableInput,"select
+   'EDNG' as source_system_cd,
+   client_desc as publisher_cd,
+   sequence_id as account_nbr,
+   upper(customer_name) as name,
+   upper(customer_first_name) as first_name,
+   upper(customer_last_name) as last_name,
+   '' as company,
+   upper(address1) as address_line_1,
+   upper(address2) as address_line_2,
+   '' as address_line_3, 
+   upper(city) as city_name,
+   upper(state) as state_province_region,
+   upper(zipcode) as zip_cd,
+   country as cntry_name,
+   '1965-01-01' as effective_from_dt,
+   '2099-12-31' as effective_thru_dt,
+   '2020-07-07 00:00:00' as insert_timestamp,
+   0 as combine_account_number,
+   '2020-07-07 00:00:00' as record_insert_date
+      
+  from mdm.lt_eeditions_xref x
+ left outer join mdm.source_xref sx ON client_desc = publisher_code and sequence_id = cast(sx.system_id as integer) and system_code = 'EDNG' 
+ 
+ where sx.universal_id is null and vendor_name = 'GOOG' 
+ 
+ 
+ 
+  ",['Get Archive File Names'],['Select values 2']
+Table output,TableOutput,,['Get Source File Names'],['Modified Java Script Value']
+Get Archive File Names,GetFileNames,,['Modified Java Script Value'],['Sort source rows']
+Get Source File Names,GetFileNames,,['Select values 2'],['Sort archive rows']
+Merge Join,MergeJoin,,['Sort source rows'],['Merge Join']
+Modified Java Script Value,ScriptValueMod,,['Sort archive rows'],['Merge Join']
+Process files,ProcessFiles,,['Merge Join'],['Process files']
+Select values 2,SelectValues,,['Get Data from lt_actual_ship_method'],['Text file output']

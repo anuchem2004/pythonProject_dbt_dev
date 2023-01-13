@@ -12,6 +12,5 @@ class Element:
         else:
             return f"{self.name} || {self.type}"
 
-
     def setFileName(self,filename):
         self.filename = filename

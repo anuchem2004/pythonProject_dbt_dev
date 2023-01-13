@@ -1,0 +1,10 @@
+name,type,sql,from,to
+hrst_stg.inc_table_verification_counts,TableInput,"SELECT   
+  cast(tvc_seq_nbr as char(50)) tvc_seq_nbr,
+  insert_ts,
+  table_name,
+  break_by,
+  sort_order,
+  filter,
+  cast(counts as char(50)) counts
+FROM inc_table_verification_counts;",['hrst_stg.inc_table_verification_counts'],['write records to file hrst_daily_counts']

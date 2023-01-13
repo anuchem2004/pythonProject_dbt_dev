@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="74ac65c3-e372-4264-9dfd-86a016b67d78" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../AirflowCDS-data-services-orchestration-dev/.idea/AirflowCDS-data-services-orchestration-dev.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../AirflowCDS-data-services-orchestration-dev/cds-data-services-orchestration-dev/.idea/.idea/.idea.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../AirflowCDS-data-services-orchestration-dev/cds-data-services-orchestration-dev/.idea/cds-data-services-orchestration-dev.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../AirflowCDS-data-services-orchestration-dev/cds-data-services-orchestration-dev/.idea/inspectionProfiles/.idea/inspectionProfiles.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/DBconn-dag-Pen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/Dockerfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/Dockerfile_2.3.3_backup" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/Dockerfile_not2.3.3" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/airflow.ini" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/commandline.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/config.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/data-generator-one-row.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/data-generator-random-rows.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/dbt-orchestration" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/dbt-scheduler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/entrypoint.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/my_bash_dag.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/rabbitmq.ini" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/rabbitmqadmin.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/simpledag-Pen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_dbt/airflow_ubun_psql/supervisord.conf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_tutorials/.idea/Airflow_tutorials.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_tutorials/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../Airflow_tutorials/my_bash_dag.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../dbtmodelling/.idea/dbtmodelling.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../dbtmodelling/config.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../dbtmodelling/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../dbtmodelling/test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../oop/Elem.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../oop/filetest.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../oop/joblib.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../oop/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../oop/privateobject.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../oop/test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/pycharm_spark_framework.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../pythonProject_dbt_dev/dbt2_airflow_poc/models/hrst/create_cancel_orders_extract_file.sql" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../pythonProject_dbt_dev/dbt2_airflow_poc/simpledag_Pentaho.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../xmlParser/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/PycharmProjects.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/PycharmProjects.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../pythonProject/Dockerfile airflow" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../pythonProject/Element.py" beforeDir="false" afterPath="$PROJECT_DIR$/../pythonProject/Element.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../pythonProject/ParseJob_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/../pythonProject/ParseJob_test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../pythonProject_dbt_dev/dbt2_airflow_poc/models/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/../pythonProject_dbt_dev/dbt2_airflow_poc/models/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../pythonProject_dbt_dev/dbt2_airflow_poc/models/sources.yml" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectId" id="2HXwDY0WuPcrcNr6Y9Oc8YRokKF" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "last_opened_file_path": "C:/Users/anuch/PycharmProjects/spark-automation-framework/Generic-Spark-Version"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+      <module name="pycharm_spark_framework" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="74ac65c3-e372-4264-9dfd-86a016b67d78" name="Changes" comment="" />
+      <created>1668444616671</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1668444616671</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>18</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>2</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>4</line>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>7</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>8</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>10</line>
+          <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>12</line>
+          <option name="timeStamp" value="8" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>15</line>
+          <option name="timeStamp" value="9" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>6</line>
+          <option name="timeStamp" value="10" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

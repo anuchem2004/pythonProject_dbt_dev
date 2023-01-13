@@ -1,0 +1,153 @@
+name,type,sql,from,to
+Copy rows to result,RowsToResult,,['Get fact filenames'],['Write to log']
+Get fact filenames,GetFileNames,,['Write to log'],['Copy rows to result']
+Write to log,WriteToLog,,['Get stage filenames'],['Write to log']
+Copy rows to result,RowsToResult,,['Write to log'],['Copy rows to result']
+Get stage filenames,GetFileNames,,['Select last update date for given table'],['Select values']
+Write to log,WriteToLog,,['Select values'],['Set update date parameter']
+Select last update date for given table,TableInput,SELECT updatedate FROM source_last_send WHERE source = '${table_name}',['Select last update date for given table'],['Select values']
+Select values,SelectValues,,['Select values'],['Set update date parameter']
+Set update date parameter,SetVariable,,['Get stage filenames'],['Write to log']
+Select last update date for given table,TableInput,"SELECT MAX(update_dt) AS update_dt FROM ${table_name}
+
+",['Write to log'],['Copy rows to result']
+Select values,SelectValues,,['Modified Java Script Value'],['Process files']
+Set update date parameter,SetVariable,,['Get File Names'],['Modified Java Script Value']
+Copy rows to result,RowsToResult,,['Get rows from result'],['Write to log']
+Get stage filenames,GetFileNames,,['Write to log'],['Replace in string']
+Write to log,WriteToLog,,['Replace in string'],['Set Variables']
+Get File Names,GetFileNames,,['Get rows from result'],['Write to log']
+Modified Java Script Value,ScriptValueMod,,['Write to log'],['Set Variables']
+Process files,ProcessFiles,,['Get ol_names data from Hold table'],['create ol_names_hold file']
+Get rows from result,RowsFromResult,,['Get staged data'],['Insert into wt_ol_names_d']
+Replace in string,ReplaceString,,['Insert into wt_ol_names_d'],['Update wt_ol_names_d']
+Set Variables,SetVariable,,['Get dimension filenames'],['Write to log']
+Write to log,WriteToLog,,['Write to log'],['Copy rows to result']
+Get rows from result,RowsFromResult,,['Table input'],['Set Variables']
+Set Variables,SetVariable,,['Read data from lol file'],['Select and rename columns']
+Write to log,WriteToLog,,['Select and rename columns'],['Truncate fields larger than the column size']
+Get ol_names data from Hold table,TableInput,"SELECT 
+     publisher_cd
+    ,system_id
+    ,campaign_id 
+    ,list_cd
+    ,update_dt
+FROM lt_ol_names_hold_stg
+",['Truncate fields larger than the column size'],['Staged lt_lol_stg']
+create ol_names_hold file,TextFileOutput,,['Get Data from lt_outside_list'],['create ol_names_stage file']
+Get staged data,TableInput,"SELECT DISTINCT
+IFNULL(i.individual_sk,-1) AS individual_sk
+,ol.publisher_cd
+,ol.campaign_id
+,ol.list_cd
+,ol.passthru_id 
+FROM lt_ol_names_stg ol 
+INNER JOIN source_xref_stg x ON x.publisher_code ${pubcodes} AND x.system_id = ol.system_id AND x.system_code='OUTSIDELIST'
+INNER JOIN ${database}.wt_individual_d i ON x.universal_id = i.universal_id and curr_rec_ind=1;",['Update wt_lol_d'],['Load wt_lol_d']
+Insert into wt_ol_names_d,TableOutput,,['Get data from lt_lol_stg'],['Update wt_lol_d']
+Update wt_ol_names_d,Update,,['Get staged data'],['Text file output']
+Copy rows to result,RowsToResult,,['Concat Fields'],['Set source_file_name']
+Get dimension filenames,GetFileNames,,['Get input parameter'],['Replace extra character in string']
+Write to log,WriteToLog,,['Replace extra character in string'],['Concat Fields']
+Set Variables,SetVariable,,['Get fact filenames'],['Write to log']
+Table input,TableInput,SELECT COUNT(1) AS target_count FROM wt_ol_names_d;,['Write to log'],['Copy rows to result']
+Read data from lol file,TextFileInput,,['Get hold filenames'],['Write to log']
+Select and rename columns,SelectValues,,['Write to log'],['Copy rows to result']
+Staged lt_lol_stg,TableOutput,,['Select last update date for given table'],['Select values']
+Truncate fields larger than the column size,ScriptValueMod,,['Select values'],['Set update date parameter']
+Get Data from lt_outside_list,TableInput,"SELECT 
+     publisher AS publisher_cd
+    ,system_id
+    ,campaign_id 
+    ,keycode AS list_cd
+    ,update_dt
+FROM hrst_data.lt_outside_list
+WHERE publisher ${pubcodes} AND update_dt > TIMESTAMP '${update_date}'",['Get stage filenames'],['Write to log']
+create ol_names_stage file,TextFileOutput,,['Write to log'],['Copy rows to result']
+Get data from lt_lol_stg,TableInput,"SELECT
+TRIM('${publisher_cd}') AS publisher_cd
+,CAMPAIGN_ID
+,LIST_SELECT_CD
+,KEYCD
+,LIST_TYP
+,LIST_CATEGORY_CD
+,SEGMENT_CD
+,LIST_NAME
+,LIST_SELECT_DESC
+,EXPIRE_START_DT
+,EXPIRE_END_DT
+,MODEL_SOURCE_CD
+,SCR_CLASS_NUM
+,CAMP_ID
+,MODEL_ID
+,MODEL_SCR_DT
+,CAMPAIGN_DESC
+,BROKER_ID
+,KEYCD_DESC
+,MBS_CATEGORY
+,MBS_CROSS_MAG
+,MAG_LIST_ABBR
+,LIST_CANCEL_IND
+,SUB_LSC_CANCEL
+,ORDERED_QTY
+,EXPECTED_QTY
+,OUTPUT_GROUP
+,PANEL
+,PANEL_DESC
+,SPECIAL_INSTRUCTIONS
+,CUTOFF_DT
+,TAPES_DUE_LETTER_SHOP
+,MAIL_DT
+,LIST_EXPIRE_DT
+,STATE_DROPS
+,BUS_DROP_IND
+,FOREIGN_DROP_IND
+,US_POSS_DROP_IND
+,RES_OCC_DROP_IND
+,OUTSIDE_SCORING
+,PRIORITY
+,MULTIBUYER_EXCLUDE_FLG
+,NTH_QTY
+,GROUPS_FOR_NTHING
+,TYPE_OF_SPLIT
+,R_RATIO_SPLIT
+,L_OR_R_SPLIT_NTH_QTY
+,FORCED_COMBO
+,COMBO_STARTING_FINDER
+,COMBO_PRODUCT_LINE_CD
+,EMAIL_VENDOR_ID 
+,FREEZE_FILE_IND
+,DECOY_GROUPS
+,REMAIL_CAMPAIGN_ID
+,REMAIL_LSC_KEYCD
+,PROM_POST_FLG
+,CONTACT_EMAIL_ADDRESS
+,RAP_LIMIT
+,LTRSHOP_DEST
+,MAINT_DT
+,ROW_NBR
+,SUB_LSC
+,BROKER_LIST_SELECT_CD
+,LIST_CD
+,MAG_CD
+,ZIP_MODEL
+,ZIP_DECILES
+,GROSS_NET_FLG
+,BGT_PLAN_DT
+,CAMPAIGN_PARTITION
+FROM ${table_name}",['Modified Java Script Value'],['Process files']
+Load wt_lol_d,TableOutput,,['Get File Names'],['Modified Java Script Value']
+Update wt_lol_d,Update,,['Get rows from result'],['Write to log']
+Get staged data,TableInput,"SELECT 
+IFNULL(i.individual_sk,-1) AS individual_sk
+,ol.publisher_cd
+,ol.campaign_id
+,ol.list_cd
+,ol.passthru_id 
+FROM lt_ol_names_stg ol 
+INNER JOIN source_xref_stg x ON x.publisher_code ${pubcodes} AND x.system_id = ol.system_id AND x.system_code='OUTSIDELIST'
+INNER JOIN ${database}.wt_individual_d i ON x.universal_id = i.universal_id and curr_rec_ind=1;",['Write to log'],['Set Variables']
+Text file output,TextFileOutput,,['Get data from lt_mbs_category_stg'],['create mbs_category fact load file']
+Concat Fields,ConcatFields,,['Get data from DL'],['Text file output']
+Get input parameter,GetVariable,,['Read data from mbs file'],['Select and rename columns']
+Replace extra character in string,ReplaceString,,['Select and rename columns'],['Text file output']

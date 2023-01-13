@@ -1,0 +1,13 @@
+{
+    "redshift_host_name": "redshift-cluster-demo.c257zdazpkxx.us-west-2.redshift.amazonaws.com",
+    "redshift_db_name": "dev",
+    "redshift_port": 5439,
+    "redshift_user": "admin",
+    "redshift_passwd": "Subhash_01",
+
+    "postgres_host_name": "www.americaniche.com",
+    "postgres_db_name": "postgres",
+    "postgres_port": 33306,
+    "postgres_user": "postgres",
+    "postgres_passwd": "password"
+}
